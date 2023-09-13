@@ -414,7 +414,7 @@ class Autopilot(Entity, replaceable=True):
         useturnspd = np.logical_or(bs.traf.actwp.turntonextwp,
                                    (self.dist2turn < (dxturnspdchg+bs.traf.actwp.turndist))) * \
                                         swturnspd*bs.traf.swvnavspd*bs.traf.swvnav*bs.traf.swlnav
-
+        
         # Hold turn mode can only be switched on here, cannot be switched off here (happeps upon passing wp)
         bs.traf.actwp.turntonextwp = bs.traf.swlnav*np.logical_or(bs.traf.actwp.turntonextwp,useturnspd)
 
