@@ -143,10 +143,6 @@ class ActiveWaypoint(Entity, replaceable=True):
         return turndist,turnrad
     
     def kwikcalcturn(self,tas,bank, wpqdr, nextwpqdr):
-        print(tas)
-        print(bank)
-        print(np.tan(bank))
-        print(g0)
         turnrad = tas * tas / (np.tan(np.radians(bank)) * g0)
         turndist = np.abs(turnrad * np.tan(np.radians(0.5 * np.abs(degto180(wpqdr%360. - nextwpqdr%360.)))))
         hdgchange = np.abs(degto180(wpqdr%360. - nextwpqdr%360.))

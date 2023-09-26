@@ -160,37 +160,28 @@ class trafficSpawner(Entity):
                             #Deceleration time
                             accel_time = abs(15*kts - 5*kts)/ bs.traf.perf.axmax[acidx]
 
-                            #Turn  time times half cuz only till current_wp
-                            turn_time = turning_dist * 0.5 / (5*kts)
+                            #No turn time since turn is made for the second waypoint
                             start_turn = True
 
                             #Add it all up
-                            time_diff = cruise_time + accel_time + turn_time
+                            time_diff = cruise_time + accel_time
                             time += time_diff
 
                             bs.scr.echo(f"Initial turn Cruise region time: {time}")
 
-                        elif dist > turndist:
+                        else:
 
                             #deceleration time
                             accel_time = abs(bs.traf.tas[acidx] - 5*kts)/ bs.traf.perf.axmax[acidx]
 
                             #Turn time half cuz only till current_wp
-                            turn_time = turning_dist * 0.5 / (5*kts)
                             start_turn = True
 
                             #Add it all up
-                            time_diff = accel_time + turn_time
+                            time_diff = accel_time
                             time += time_diff
 
                             bs.scr.echo(f"Initial turn Decell region time: {time}")
-
-                        else:
-                            turn_time = turning_dist * 0.5 / (5*kts)
-                            time += 0.5 * turn_time
-
-                            bs.scr.echo(f"Initiral Turn turning region time: {time}")
-
 
 
                     #Drone going away from a turn in the first run
@@ -204,13 +195,9 @@ class trafficSpawner(Entity):
                         cruise_dist = leg_dist - accel_dist - turndist
                         
 
-                        if dist < leg_dist - turndist - accel_dist:
-                            turn_time = turning_dist * 0.5 / (5*kts)
-                            time += 0.5 * turn_time
-
-                        elif dist < accel_dist:
+                        if dist < accel_dist:
                             #acceleration time
-                            accel_time = abs(bs.traf.tas[acidx] - 5*kts)/ bs.traf.perf.axmax[acidx]
+                            accel_time = abs(bs.traf.tas[acidx] - 15*kts)/ bs.traf.perf.axmax[acidx]
 
                             time_diff = accel_time
                             time += time_diff
@@ -235,7 +222,7 @@ class trafficSpawner(Entity):
                             cruise_time = cruise_dist / (5*kts)
 
                             #Turning time
-                            turn_time = turning_dist * 0.5 * 0.5/ (5*kts)
+                            turn_time = turning_dist * 0.5/ (5*kts)
 
                             #Add it all up
                             time_diff = cruise_time + accel_time + turn_time
@@ -254,7 +241,7 @@ class trafficSpawner(Entity):
                 elif start_turn == True:
                     if acrte.wpflyturn[current_wp] == True:
                         #second part of initial turn
-                        initial_turn_time = turning_dist * 0.5 / (5*kts)
+                        initial_turn_time = turning_dist/ (5*kts)
                         initial_turndist = turndist
 
                         #Calculations for the second turn parameters
@@ -271,25 +258,23 @@ class trafficSpawner(Entity):
                         cruise_time = cruise_dist / (5*kts)
 
                         # Second turn time times half cuz only till current_wp
-                        turn_time = turning_dist * 0.5 / (5*kts)
                         start_turn = True
 
                         #Total time
-                        time_diff = initial_turn_time + cruise_time + turn_time
+                        time_diff = initial_turn_time + cruise_time 
                         time += time_diff
                         
                         bs.scr.echo(f"Time difference between {current_wp -1} and {current_wp } is {time_diff}")
-                        bs.scr.echo(f"turn time is {turn_time}")
                         bs.scr.echo(f"Cruise time is {cruise_time}")
-                        bs.scr.echo(f"Accel time is {accel_time}")
+                        bs.scr.echo(f"initial turn time is {initial_turn_time}")
                         bs.scr.echo(f"------------------------------------------------------------------------------------------------------")
                         
                         current_wp +=1
 
 
                     else:
-                        #second part of turn
-                        turn_time = turning_dist * 0.5 / (5*kts)
+                        #The turn
+                        turn_time = turning_dist/ (5*kts)
 
                         #Acceleration
                         accel_dist = distaccel(5*kts, 15*kts, bs.traf.perf.axmax[acidx])
@@ -328,19 +313,16 @@ class trafficSpawner(Entity):
                         accel_time = abs(15*kts - 5*kts)/ bs.traf.perf.axmax[acidx]
 
                         #Turn  time times half cuz only till current_wp
-                        turn_time = turning_dist * 0.5 / (5*kts)
                         start_turn = True
 
                         #Add it all up
-                        time_diff = cruise_time + accel_time + turn_time
+                        time_diff = cruise_time + accel_time
                         time += time_diff
 
                         bs.scr.echo(f"Total leg distance: {dist}")
                         bs.scr.echo(f"cruise time: {cruise_time}")
                         bs.scr.echo(f"cruise distance: {cruise_dist}")
                         bs.scr.echo(f"accel time: {accel_time}")
-                        bs.scr.echo(f"Turning time: {turn_time}")
-
                         bs.scr.echo(f"Regular turn leg: {time_diff}")    
                         current_wp +=1
                     
