@@ -119,7 +119,7 @@ class trafficSpawner(Entity):
             stack.stack(f'LNAV {acid} ON')
             stack.stack(f'VNAV {acid} ON')
 
-    @timed_function(dt = 10)
+    @timed_function(dt = 30)
     def route_checker(self):
         try:
             bs.traf.id
@@ -140,7 +140,10 @@ class trafficSpawner(Entity):
             current_wp = acrte.iactwp
             first_run = True
             start_turn = False
-            while time < 10:
+            floor_div = 0
+            measurement_freq= 10
+            array_measurement= []
+            while time < 30:
                 if first_run == True:
                     _, dist = kwikqdrdist(bs.traf.lat[acidx], bs.traf.lon[acidx], acrte.wplat[current_wp], acrte.wplon[current_wp])
                     dist *= nm
@@ -347,86 +350,122 @@ class trafficSpawner(Entity):
                         current_wp +=1
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------
-        #Position Calculations
-        if acrte.wpflyturn[current_wp-1] == True:
-            overshoot_time = time-10
-            wpqdr, dist = kwikqdrdist(acrte.wplat[current_wp -2], acrte.wplon[current_wp -2], acrte.wplat[current_wp-1], acrte.wplon[current_wp-1])
-            dist = dist *nm
-            nextwpqdr, _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp ], acrte.wplon[current_wp])
-            turndist, turnrad, hdgchange= bs.traf.actwp.kwikcalcturn( 5*kts, 25, wpqdr, nextwpqdr)
+            #Position Calculations
+                if floor_div < time // measurement_freq:
+                    i= 0
+                    value = int(time // measurement_freq) - floor_div
+                    while i < value and floor_div < 3:
+                        floor_div += 1
+                        overshoot_time = time - floor_div * measurement_freq
+                        print(f"overshoot_time: {overshoot_time}")
+                        print(f"floor_div: {floor_div}")
+                        print(i)
 
-            accel_dist = distaccel(15*kts, 5*kts, bs.traf.perf.axmax[acidx])
-            accel_time = abs(15*kts - 5*kts)/ bs.traf.perf.axmax[acidx]
+                        if acrte.wpflyturn[current_wp-1] == True:
+                            wpqdr, dist = kwikqdrdist(acrte.wplat[current_wp -2], acrte.wplon[current_wp -2], acrte.wplat[current_wp-1], acrte.wplon[current_wp-1])
+                            dist = dist *nm
+                            nextwpqdr, _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp ], acrte.wplon[current_wp])
+                            turndist, turnrad, hdgchange= bs.traf.actwp.kwikcalcturn( 5*kts, 25, wpqdr, nextwpqdr)
 
-            #Ends in deceleration part before turn
-            if overshoot_time < accel_time:
-                overshoot_dist = 0.5 * bs.traf.perf.axmax[acidx] * (overshoot_time)**2 + 5 * kts * overshoot_time
-                bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
-                final_lat , final_lon = kwikpos(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bearing, overshoot_dist/nm)
-            
-            #Ends in cruise part before turn
-            else: 
-                remaining_time = overshoot_time - accel_time
-                overshoot_dist = accel_dist + remaining_time * 15*kts
-                bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
-                final_lat , final_lon = kwikpos(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bearing, overshoot_dist/nm)
-            
-            
-            
-        elif acrte.wpflyturn[current_wp-2] == True:
-            overshoot_time = time-10
-            wpqdr, dist = kwikqdrdist(acrte.wplat[current_wp -3], acrte.wplon[current_wp -3], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
-            dist = dist *nm
-            nextwpqdr, leg_dist = kwikqdrdist(acrte.wplat[current_wp-2], acrte.wplon[current_wp-2], acrte.wplat[current_wp-1], acrte.wplon[current_wp-1])
-            leg_dist *= nm
-            turndist, turnrad, hdgchange= bs.traf.actwp.kwikcalcturn( 5*kts, 25, wpqdr, nextwpqdr)
+                            accel_dist = distaccel(15*kts, 5*kts, bs.traf.perf.axmax[acidx])
+                            accel_time = abs(15*kts - 5*kts)/ bs.traf.perf.axmax[acidx]
 
-            accel_dist = distaccel(15*kts, 5*kts, bs.traf.perf.axmax[acidx])
-            accel_time = abs(15*kts - 5*kts)/ bs.traf.perf.axmax[acidx]
+                            #Ends in deceleration part before turn
+                            if overshoot_time < accel_time:
+                                overshoot_dist = 0.5 * bs.traf.perf.axmax[acidx] * (overshoot_time)**2 + 5 * kts * overshoot_time
+                                bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
+                                final_lat , final_lon = kwikpos(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bearing, overshoot_dist/nm)
 
-            cruise_dist = leg_dist - turndist - accel_dist
-            cruise_time = cruise_dist / 5 *kts
+                            #Ends in cruise part before turn
+                            else: 
+                                remaining_time = overshoot_time - accel_time
+                                overshoot_dist = accel_dist + remaining_time * 15*kts
+                                bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
+                                final_lat , final_lon = kwikpos(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bearing, overshoot_dist/nm)
 
-            if overshoot_time < accel_time:
-                overshoot_dist = - 0.5 * bs.traf.perf.axmax[acidx] * (overshoot_time)**2 + 15 * kts * overshoot_time
-                bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
-                final_lat , final_lon = kwikpos(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bearing, overshoot_dist/nm)
 
-            elif overshoot_time < accel_time + cruise_time:
-                remaining_time = overshoot_time - accel_time
-                overshoot_dist = accel_dist + remaining_time * 5*kts
-                bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
-                final_lat , final_lon = kwikpos(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bearing, overshoot_dist/nm)
-                
 
-            else:
-                final_lat = acrte.wplat[current_wp -2]
-                final_lon = acrte.wplon[current_wp -2]
-                bs.scr.echo(f"Lat Lon: {final_lat} {final_lon}")
-        
-        else:
-            overshoot_time = time-10
-            overshoot_dist = overshoot_time * 15*kts
-            bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
-            final_lat, final_lon = kwikpos(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bearing, overshoot_dist/nm)
+                        elif acrte.wpflyturn[current_wp-2] == True:
+                            wpqdr, dist = kwikqdrdist(acrte.wplat[current_wp -3], acrte.wplon[current_wp -3], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
+                            dist = dist *nm
+                            nextwpqdr, leg_dist = kwikqdrdist(acrte.wplat[current_wp-2], acrte.wplon[current_wp-2], acrte.wplat[current_wp-1], acrte.wplon[current_wp-1])
+                            leg_dist *= nm
+                            turndist, turnrad, hdgchange= bs.traf.actwp.kwikcalcturn( 5*kts, 25, wpqdr, nextwpqdr)
+
+                            accel_dist = distaccel(15*kts, 5*kts, bs.traf.perf.axmax[acidx])
+                            accel_time = abs(15*kts - 5*kts)/ bs.traf.perf.axmax[acidx]
+
+                            cruise_dist = leg_dist - turndist - accel_dist
+                            cruise_time = cruise_dist / 5 *kts
+
+                            if overshoot_time < accel_time:
+                                overshoot_dist = - 0.5 * bs.traf.perf.axmax[acidx] * (overshoot_time)**2 + 15 * kts * overshoot_time
+                                bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
+                                final_lat , final_lon = kwikpos(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bearing, overshoot_dist/nm)
+
+                            elif overshoot_time < accel_time + cruise_time:
+                                remaining_time = overshoot_time - accel_time
+                                overshoot_dist = accel_dist + remaining_time * 5*kts
+                                bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
+                                final_lat , final_lon = kwikpos(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bearing, overshoot_dist/nm)
+
+
+                            else:
+                                final_lat = acrte.wplat[current_wp -2]
+                                final_lon = acrte.wplon[current_wp -2]
+
+
+                        else:
+                            overshoot_dist = overshoot_time * 15*kts
+                            bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
+                            final_lat, final_lon = kwikpos(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bearing, overshoot_dist/nm)
+
+                        #Data record
+                        array_measurement.append([acid, floor_div, final_lat, final_lon])
+                        i +=1
+
+                    print(f"time: {time} and floor div {floor_div}") 
+                    print("---------------------------------------------------------------")
+                        #bs.scr.echo(f"Currented location {floor_div}:     {bs.traf.lat[acidx]} {bs.traf.lon[acidx]}")
+
 
             #Print stuff
-        bs.scr.echo(f"Currented location:     {bs.traf.lat[acidx]} {bs.traf.lon[acidx]}")
-        bs.scr.echo(f"------------------------------------------------------------------------------------")
-        #bs.scr.echo(f"Current wp: {current_wp -1} and {acrte.wplat[current_wp-1]} {acrte.wplon[current_wp-1]}")
-        bs.scr.echo(f"Predicted location:   {final_lat} {final_lon}")
-        #bs.scr.echo(f"Overshoot dist {overshoot_dist}")
-        #bs.scr.echo(f"Bearing {bearing}")
-        #bs.scr.echo(f"Going to waypoint now: {acrte.iactwp}")
-        #bs.scr.echo(f"Waypoint predicted: {current_wp -1}")
-        #bs.scr.echo(f"Next turn distance {bs.traf.actwp.turndist[acidx]}")
-        #bs.scr.echo(f"Turnadius {bs.traf.actwp.nextturnrad[acidx]}")
-        #bs.scr.echo(f"Turn wp index {bs.traf.actwp.nextturnidx[acidx]}")
-        #bs.scr.echo(f"Turn Distance {turndist}")
-        #bs.scr.echo(f"Turn Radius {turnrad}")
-        #bs.scr.echo(f"inital angle is {wpqdr}")
-        #bs.scr.echo(f"second angle is {nextwpqdr}")
+            #bs.scr.echo(f"------------------------------------------------------------------------------------")
+            #bs.scr.echo(f"Current wp: {current_wp -1} and {acrte.wplat[current_wp-1]} {acrte.wplon[current_wp-1]}")
+            #bs.scr.echo(f"Predicted location:   {final_lat} {final_lon}")
+            #bs.scr.echo(f"Overshoot dist {overshoot_dist}")
+            #bs.scr.echo(f"Bearing {bearing}")
+            #bs.scr.echo(f"Going to waypoint now: {acrte.iactwp}")
+            #bs.scr.echo(f"Waypoint predicted: {current_wp -1}")
+            #bs.scr.echo(f"Next turn distance {bs.traf.actwp.turndist[acidx]}")
+            #bs.scr.echo(f"Turnadius {bs.traf.actwp.nextturnrad[acidx]}")
+            #bs.scr.echo(f"Turn wp index {bs.traf.actwp.nextturnidx[acidx]}")
+            #bs.scr.echo(f"Turn Distance {turndist}")
+            #bs.scr.echo(f"Turn Radius {turnrad}")
+            #bs.scr.echo(f"inital angle is {wpqdr}")
+            #bs.scr.echo(f"second angle is {nextwpqdr}")
+        bs.scr.echo(f"{array_measurement}")
         stack.stack(f"HOLD")    
+
+    #@timed_function(dt = 10)
+    def printer(self):
+        try:
+            bs.traf.id
+        except:
+            bs.scr.echo("this doesnt work")
+            return
+        else:
+            acids = bs.traf.id
+
+        for acid in acids:
+            time = 0
+            acidx = bs.traf.id2idx(acid)
+            acrte = Route._routes.get(acid)
+
+            bs.scr.echo(f" lat: {bs.traf.lat[acidx]} lon: {bs.traf.lon[acidx]}")
+
+        stack.stack("HOLD")
+
     
 
     @timed_function(dt = 0.5)
