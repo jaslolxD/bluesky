@@ -61,13 +61,25 @@ class JasonCD(ConflictDetection):
         self.predicted_waypoints = [] # Predicted list of waypoints
         self.qdr_mat = np.array([]) # QDR for all aircraft
         self.dist_mat = np.array([]) # Distance for all aircraft
-        self.dtlookahead = 30
-        self.measurement_freq = 10
-        self.rpz = 50
+        self.dtlookahead_def = 30
+        self.measurement_freq = 5
+        self.rpz_def = 50
         
         # Logging
         self.conflictlog = datalog.crelog('CDR_CONFLICTLOG', None, confheader)
         self.uniqueconfloslog = datalog.crelog('CDR_WASLOSLOG', None, uniqueconflosheader)
+        
+        # Conflict related
+
+        self.prevconfpairs = set()
+
+        self.prevlospairs = set()
+
+        self.unique_conf_dict = dict()
+
+        self.counter2id = dict() # Keep track of the other way around
+
+        self.unique_conf_id_counter = 0 # Start from 0, go up
         
 
     def reset(self):
@@ -77,47 +89,58 @@ class JasonCD(ConflictDetection):
         self.qdr_mat = np.array([]) # QDR for all aircraft
         self.dist_mat = np.array([]) # Distance for all aircraft
 
+        # Conflict related
+
+        self.prevconfpairs = set()
+
+        self.prevlospairs = set()
+
+        self.unique_conf_dict = dict()
+
+        self.counter2id = dict() # Keep track of the other way around
+
+        self.unique_conf_id_counter = 0 # Start from 0, go up
+
     
     def clearconfdb(self):
         return super().clearconfdb()
     
     def update(self, ownship, intruder):
         ''' Perform an update step of the Conflict Detection implementation. '''
-        self.confpairs, self.lospairs, self.inconf, self.tcpamax, self.qdr, \
-            self.dist, self.dcpa, self.tcpa, self.tLOS = \
-                self.detect(ownship, intruder, self.rpz, self.hpz, self.dtlookahead)
+        self.confpairs, self.inconf = \
+                self.detect(ownship, intruder, self.rpz_def, self.hpz, self.dtlookahead_def)
 
         # confpairs has conflicts observed from both sides (a, b) and (b, a)
         # confpairs_unique keeps only one of these
         confpairs_unique = {frozenset(pair) for pair in self.confpairs}
-        lospairs_unique = {frozenset(pair) for pair in self.lospairs}
+        #lospairs_unique = {frozenset(pair) for pair in self.lospairs}
 
         self.confpairs_all.extend(confpairs_unique - self.confpairs_unique)
-        self.lospairs_all.extend(lospairs_unique - self.lospairs_unique)
+        #self.lospairs_all.extend(lospairs_unique - self.lospairs_unique)
 
         # Update confpairs_unique and lospairs_unique
         self.confpairs_unique = confpairs_unique
-        self.lospairs_unique = lospairs_unique
+        #self.lospairs_unique = lospairs_unique
         
         # Update the logging
-        #self.update_log()
+        self.update_log()
     
     def detect(self, ownship, intruder, rpz, hpz, dtlookahead):
         # Do state-based detection for LOS information
-        confpairs_s, lospairs_s, inconf_s, tcpamax_s, qdr_s, \
-            dist_s, dcpa_s, tcpa_s, tLOS_s, qdr_mat, dist_mat = \
-                self.sb_detect(ownship, intruder, self.rpz, self.hpz, self.dtlookahead)    
+        #confpairs_s, lospairs_s, inconf_s, tcpamax_s, qdr_s, \
+        #    dist_s, dcpa_s, tcpa_s, tLOS_s, qdr_mat, dist_mat = \
+        #        self.sb_detect(ownship, intruder, self.rpz_def, self.hpz, self.dtlookahead_def)    
                 
         # Save the qdr_mat and dist_mat, the matrices that have the information about all aircraft
-        self.qdr_mat = qdr_mat
-        self.dist_mat = dist_mat 
+        #self.qdr_mat = qdr_mat
+        #self.dist_mat = dist_mat 
                 
         # Do the own detection
-        confpairs, inconf, self.predicted_waypoints = self.jason_detect(ownship, intruder, self.rpz, self.hpz, self.dtlookahead)
+        confpairs, inconf, self.predicted_waypoints = self.jason_detect(ownship, intruder, self.rpz_def, self.hpz, self.dtlookahead_def)
 
-        array = self.traj_detect(ownship, intruder, self.rpz, self.dtlookahead, self.measurement_freq)
+        array = self.traj_detect(ownship, intruder, self.rpz_def, self.dtlookahead_def, self.measurement_freq)
 
-        return confpairs, lospairs_s, inconf, tcpamax_s, qdr_s, dist_s, dcpa_s, tcpa_s, tLOS_s
+        return confpairs, inconf
     
     def jason_detect(self, ownship, intruder, rpz, hpz, dtlookahead):
         # All aircraft are within 300m of each other are in conflict!! (definitely change this)
@@ -152,6 +175,7 @@ class JasonCD(ConflictDetection):
             first_run = True
             start_turn = False
             floor_div = 0
+            rpz = 50
             while time < 30:
                 if first_run == True:
                     _, dist = kwikqdrdist(bs.traf.lat[acidx], bs.traf.lon[acidx], acrte.wplat[current_wp], acrte.wplon[current_wp])
@@ -179,6 +203,9 @@ class JasonCD(ConflictDetection):
                             #Add it all up
                             time_diff = cruise_time + accel_time
                             time += time_diff
+                            
+                            current_wp +=1
+                            first_run = False
 
                             #bs.scr.echo(f"Initial turn Cruise region time: {time}")
 
@@ -193,6 +220,9 @@ class JasonCD(ConflictDetection):
                             #Add it all up
                             time_diff = accel_time
                             time += time_diff
+
+                            current_wp +=1
+                            first_run = False
 
                             #bs.scr.echo(f"Initial turn Decell region time: {time}")
 
@@ -215,6 +245,9 @@ class JasonCD(ConflictDetection):
                             time_diff = accel_time
                             time += time_diff
 
+                            current_wp +=1
+                            first_run = False
+
                         elif dist < accel_dist + cruise_dist:
                             #acceleration time
                             accel_time = abs(15* kts - 5*kts)/ bs.traf.perf.axmax[acidx]
@@ -226,6 +259,9 @@ class JasonCD(ConflictDetection):
                             #Add it all up
                             time_diff = cruise_time + accel_time
                             time += time_diff
+
+                            current_wp +=1
+                            first_run = False
 
                         else: 
                             #acceleration time
@@ -240,6 +276,9 @@ class JasonCD(ConflictDetection):
                             #Add it all up
                             time_diff = cruise_time + accel_time + turn_time
                             time += time_diff
+
+                            current_wp +=1
+                            first_run = False
                             
                     #Regular cruise
                     else:
@@ -339,7 +378,7 @@ class JasonCD(ConflictDetection):
                 if floor_div < time // measurement_freq:
                     i= 0
                     value = int(time // measurement_freq) - floor_div
-                    while i < value and floor_div < 3:
+                    while i < value and floor_div < dtlookahead / measurement_freq:
                         floor_div += 1
                         overshoot_time = time - floor_div * measurement_freq
                         #print(f"overshoot_time: {overshoot_time}")
@@ -402,41 +441,71 @@ class JasonCD(ConflictDetection):
 
                         else:
                             overshoot_dist = overshoot_time * 15*kts
-                            bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
+                            if acrte.wplat[current_wp-1] == acrte.wplat[current_wp-2]:
+                                bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bs.traf.lat[acidx], bs.traf.lon[acidx])
+                            else:
+                                bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
                             final_lat, final_lon = kwikpos(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bearing, overshoot_dist/nm)
 
+                            
+
                         #Data record
+                        #print(f"{acid} , {final_lat}")
                         array_measurement.append([acid, floor_div, final_lat, final_lon])
                         i +=1
 
-        bs.scr.echo(f"{array_measurement}")  
+                try:
+                    acrte.wpflyturn[current_wp]
+                except:
+                    break
+
+          
         #print(array_measurement)
 
         confpairs =[]
         df = pd.DataFrame(array_measurement, columns=["acid", "part", "lat", "lon"])
-        I = I = np.eye(len(df["acid"].unique()))
-        parts = max(df["part"])
-        
+        #print(df)
 
-        for i in range(1, parts+1):
-            qdr,dist = geo.kwikqdrdist_matrix(np.asmatrix(df[df["part"] ==i ].lat),np.asmatrix(df[df["part"] ==i ].lon), np.asmatrix(df[df["part"] ==i ].lat), np.asmatrix(df[df["part"] ==i ].lon))
-            qdr = np.asarray(qdr)
-            dist = np.asarray(dist) * nm + 1e9 * I
-            #print(dist)
-            conflicts = np.column_stack(np.where(dist < 100))
-            for pair in conflicts:
-                conflictpair = (df["acid"].unique()[pair[0]], df["acid"].unique()[pair[1]])
-                if conflictpair not in confpairs:
-                    confpairs.append(conflictpair)
-            
-            print(confpairs)
-       
+        try:
+            parts = max(df["part"])
+        except:
+            print("No more tings")
+        else:
+            parts = max(df["part"])
+
+            for i in range(1, parts+1):
+                qdr,dist = geo.kwikqdrdist_matrix(np.asmatrix(df[df["part"] ==i ].lat),np.asmatrix(df[df["part"] ==i ].lon), np.asmatrix(df[df["part"] ==i ].lat), np.asmatrix(df[df["part"] ==i ].lon))
+                I = np.eye(len(df[df["part"] ==i]["acid"].unique()))
+                qdr = np.asarray(qdr)
+                dist = np.asarray(dist) * nm + 1e9 * I
+                #print(dist)
+                conflicts = np.column_stack(np.where(dist < rpz))
+                for pair in conflicts:
+                    conflictpair = (df["acid"].unique()[pair[0]], df["acid"].unique()[pair[1]])
+                    if conflictpair not in confpairs:
+                        confpairs.append(conflictpair)
+
+        #Conflict Pairs
+        #print(confpairs)
+        #bs.scr.echo(f"{confpairs}")
+        self.confpairs = confpairs
         confpairs_idx = [(bs.traf.id2idx(acid1), bs.traf.id2idx(acid2)) for acid1, acid2 in confpairs]
 
         inconf = np.zeros(bs.traf.ntraf)
         for idx1, idx2 in confpairs_idx:
             inconf[idx1] = 1
 
+        self.inconf = inconf
+
+        #LoS Pairs
+        I = np.eye(ownship.ntraf)
+        _, dist_state = qdr, dist = geo.kwikqdrdist_matrix(np.asmatrix(ownship.lat), np.asmatrix(ownship.lon),
+                                    np.asmatrix(intruder.lat), np.asmatrix(intruder.lon))
+        dist_state = np.asarray(dist_state) * nm + 1e9 * I
+        swlos = (dist_state < rpz)
+        lospairs = [(ownship.id[i], ownship.id[j]) for i, j in zip(*np.where(swlos))]
+        #bs.scr.echo(f"{lospairs}")
+        self.lospairs = lospairs
         
 
         return array_measurement
