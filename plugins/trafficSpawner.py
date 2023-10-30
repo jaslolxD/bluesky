@@ -3,7 +3,7 @@ from bluesky import stack
 from bluesky.traffic import Route
 from bluesky.core import Entity, timed_function
 from bluesky.stack import command
-from bluesky.tools.aero import kts, ft, nm
+from bluesky.tools.aero import kts, ft, nm, fpm
 from bluesky.tools.geo import kwikqdrdist, kwikpos
 from bluesky.tools.misc import degto180
 import osmnx as ox
@@ -39,18 +39,41 @@ class trafficSpawner(Entity):
     def __init__(self):
         super().__init__()
         self.graph , self.nodes, self.edges = self.loadCity()
-        self.target_ntraf = 50
+        self.target_ntraf = 20
         self.traf_id = 1
         self.traf_spd = 10
         self.traf_alt = 100 * ft
+
+        # Logging related stuff
+
+        self.prevconfpairs = set()
+
+        self.prevlospairs = set()
+
+        self.confinside_all = 0
+
+        self.deleted_aircraft = 0
+
+        self.losmindist = dict()
+
+        
+
         with self.settrafarrays():
+
             self.route_edges = []
+
+            # Metrics
+
+            self.distance2D = np.array([])
+
+            self.distance3D = np.array([])
+
+            self.distancealt = np.array([])
+
+            self.create_time = np.array([])
+
         return
-    
-    def create(self, n=1):
-        super().create(n)
-        # Store creation time of new aircraft
-        self.route_edges[-n:] = [0]*n # Default edge
+
 
 
     def loadCity(self):
@@ -61,11 +84,12 @@ class trafficSpawner(Entity):
     def loadRoutes(self):
         routes = os.listdir(f'C:/Coding/bluesky/bluesky/plugins/graph_genetic_algorithm/pickles')
         return routes
+        
 
     @timed_function(dt = 1)
     def spawn(self):
-        routes = os.listdir(f'C:/Coding/bluesky/bluesky/plugins/graph_genetic_algorithm/pickles')
-        random.seed(1)
+        routes = os.listdir(f'C:/Coding/bluesky_fork2/bluesky/plugins/graph_genetic_algorithm/pickles')
+        #random.seed(1)
         while bs.traf.ntraf < self.target_ntraf:
             count = 0
             route_entry = random.randint(0,len(routes)-1)
@@ -111,7 +135,6 @@ class trafficSpawner(Entity):
                         acrte.addwpt_simple(acidx,f"WP{count}", wptype, route[i][0], route[i][1], self.traf_alt, 15*kts)
 
                 current_angle = future_angle
-                print(f"{future_angle} for WP{count}")
                 count +=1
 
             acrte.calcfp()
@@ -141,6 +164,8 @@ class trafficSpawner(Entity):
 
     
 
+    
+
     @timed_function(dt = 0.5)
     def delete_aircraft(self):
         # Delete aircraft that have LNAV off and have gone past the last waypoint.
@@ -155,7 +180,27 @@ class trafficSpawner(Entity):
             # Get the ACIDs of the aircraft to delete
             acids_to_delete = np.array(bs.traf.id)[delete_array]
             for acid in acids_to_delete:
-                stack.stack(f'DEL {acid}')
+                idx = bs.traf.id2idx(acid)
+                bs.traf.CDLogger.flst.log(
+                acid,
+                self.create_time[idx],
+                bs.sim.simt - self.create_time[idx],
+                (self.distance2D[idx]),
+                (self.distance3D[idx]),
+                (self.distancealt[idx]),
+                bs.traf.lat[idx],
+                bs.traf.lon[idx],
+                bs.traf.alt[idx]/ft,
+                bs.traf.tas[idx]/kts,
+                bs.traf.vs[idx]/fpm,
+                bs.traf.hdg[idx],
+                bs.traf.cr.active[idx],
+                bs.traf.aporasas.alt[idx]/ft,
+                bs.traf.aporasas.tas[idx]/kts,
+                bs.traf.aporasas.vs[idx]/fpm,
+                bs.traf.aporasas.hdg[idx])
+                bs.traf.delete(idx)
+                #stack.stack(f'DEL {acid}')
 
 
     def reset(self):
@@ -164,6 +209,36 @@ class trafficSpawner(Entity):
         self.traf_id = 1
         self.traf_spd = 20
         self.traf_alt = 100 * ft
+
+        # Logging related stuff
+
+        self.prevconfpairs = set()
+
+        self.prevlospairs = set()
+
+        self.confinside_all = 0
+
+        self.deleted_aircraft = 0
+
+        self.losmindist = dict()
+
+        
+
+        with self.settrafarrays():
+
+            self.route_edges = []
+
+            # Metrics
+
+            self.distance2D = np.array([])
+
+            self.distance3D = np.array([])
+
+            self.distancealt = np.array([])
+
+            self.create_time = np.array([])
+
+        return
 
     
 def distaccel(v0,v1,axabs):

@@ -283,9 +283,10 @@ class JasonCD(ConflictDetection):
                     #Regular cruise
                     else:
                         time += dist/ (15*kts)
+                        first_run = False
+                        current_wp +=1
 
-                    first_run = False
-                    current_wp +=1
+                    
 
                 #Iterations after turn
                 elif start_turn == True:
@@ -384,6 +385,8 @@ class JasonCD(ConflictDetection):
                         #print(f"overshoot_time: {overshoot_time}")
                         #print(f"floor_div: {floor_div}")
                         #print(i)
+                        print(current_wp -1)
+                        print(acrte.wpname)
 
                         if acrte.wpflyturn[current_wp-1] == True:
                             wpqdr, dist = kwikqdrdist(acrte.wplat[current_wp -2], acrte.wplon[current_wp -2], acrte.wplat[current_wp-1], acrte.wplon[current_wp-1])
@@ -487,7 +490,7 @@ class JasonCD(ConflictDetection):
 
         #Conflict Pairs
         #print(confpairs)
-        #bs.scr.echo(f"{confpairs}")
+        bs.scr.echo(f"{confpairs}")
         self.confpairs = confpairs
         confpairs_idx = [(bs.traf.id2idx(acid1), bs.traf.id2idx(acid2)) for acid1, acid2 in confpairs]
 
