@@ -4,7 +4,7 @@ from bluesky.traffic import Route
 from bluesky.core import Entity, timed_function
 from bluesky.stack import command
 from bluesky.tools.aero import kts, ft, nm, fpm
-from bluesky.tools.geo import kwikqdrdist, kwikpos
+from bluesky.tools.geo import kwikqdrdist, kwikpos, kwikdist, kwikdist_matrix
 from bluesky.tools.misc import degto180
 import osmnx as ox
 import networkx as nx
@@ -43,17 +43,14 @@ class trafficSpawner(Entity):
         self.traf_id = 1
         self.traf_spd = 10
         self.traf_alt = 100 * ft
+        random.seed(1)
+
 
         # Logging related stuff
-
         self.prevconfpairs = set()
-
         self.prevlospairs = set()
-
         self.confinside_all = 0
-
         self.deleted_aircraft = 0
-
         self.losmindist = dict()
 
         
@@ -61,15 +58,10 @@ class trafficSpawner(Entity):
         with self.settrafarrays():
 
             self.route_edges = []
-
             # Metrics
-
             self.distance2D = np.array([])
-
             self.distance3D = np.array([])
-
             self.distancealt = np.array([])
-
             self.create_time = np.array([])
 
         return
@@ -84,6 +76,15 @@ class trafficSpawner(Entity):
     def loadRoutes(self):
         routes = os.listdir(f'C:/Coding/bluesky/bluesky/plugins/graph_genetic_algorithm/pickles')
         return routes
+    
+    def create(self, n=1):
+        super().create(n)
+        # Store creation time of new aircraft
+        self.route_edges[-n:] = [0]*n # Default edge
+        self.distance2D[-n:] = [0]*n
+        self.distance3D[-n:] = [0]*n
+        self.distancealt[-n:] = [0]*n
+        self.create_time[-n:] = [0]*n
         
 
     @timed_function(dt = 1)
@@ -92,21 +93,28 @@ class trafficSpawner(Entity):
         #random.seed(1)
         while bs.traf.ntraf < self.target_ntraf:
             count = 0
+            dangerclose= False
             route_entry = random.randint(0,len(routes)-1)
             filename = routes[route_entry]
             route = pd.read_pickle(f'C:/Coding/bluesky_fork2/bluesky/plugins/graph_genetic_algorithm/pickles/{filename}')
             lats, lons = zip(*route)
-
+            dist = kwikdist_matrix(np.array([lats[0]]),np.array([lons[0]]), bs.traf.lat, bs.traf.lon)
+            dist = dist *nm
+            
+            print(dist)
+            if np.any(dist < 500):
+                print("TOO CLOSE")
+                bs.scr.echo("TOO CLOSE")
+                continue
+            
             acid = f"DR{self.traf_id}"
             self.traf_id += 1
             actype = "M600"
             achdg , _ = kwikqdrdist(lats[0], lons[0], lats[1], lons[1])
             bs.traf.cre(acid, actype, lats[0], lons[0], achdg, self.traf_alt, 15 *kts)
-
             acrte = Route._routes.get(acid)
             acidx = bs.traf.id.index(acid)
             bs.scr.echo(f"spawning")
-
             lastwp=[]
             for i in range(len(route)):
                 if i == len(route)-1:
@@ -133,14 +141,15 @@ class trafficSpawner(Entity):
                         acrte.swflyturn = False
                         wptype = Route.wplatlon
                         acrte.addwpt_simple(acidx,f"WP{count}", wptype, route[i][0], route[i][1], self.traf_alt, 15*kts)
-
                 current_angle = future_angle
                 count +=1
-
             acrte.calcfp()
             stack.stack(f"DIRECT {acid} WP0")
             stack.stack(f'LNAV {acid} ON')
             stack.stack(f'VNAV {acid} ON')
+
+        
+                
 
 
     #@timed_function(dt = 10)
@@ -168,6 +177,7 @@ class trafficSpawner(Entity):
 
     @timed_function(dt = 0.5)
     def delete_aircraft(self):
+        self.update_logging()
         # Delete aircraft that have LNAV off and have gone past the last waypoint.
         lnav_on = bs.traf.swlnav
         still_going_to_dest = np.logical_and(abs(degto180(bs.traf.trk - bs.traf.ap.qdr2wp)) < 10.0, 
@@ -201,6 +211,88 @@ class trafficSpawner(Entity):
                 bs.traf.aporasas.hdg[idx])
                 bs.traf.delete(idx)
                 #stack.stack(f'DEL {acid}')
+
+    def update_logging(self):        
+        # Increment the distance metrics
+        resultantspd = np.sqrt(bs.traf.gs * bs.traf.gs + bs.traf.vs * bs.traf.vs)
+        self.distance2D += bs.sim.simdt * abs(bs.traf.gs)
+        self.distance3D += bs.sim.simdt * resultantspd
+        self.distancealt += bs.sim.simdt * abs(bs.traf.vs)
+        
+        # Now let's do the CONF and LOS logs
+        confpairs_new = list(set(bs.traf.cd.confpairs) - self.prevconfpairs)
+        print(bs.traf.cd.confpairs)
+        if confpairs_new:
+            done_pairs = []
+            for pair in set(confpairs_new):
+                # Check if the aircraft still exist
+                if (pair[0] in bs.traf.id) and (pair[1] in bs.traf.id):
+                    # Get the two aircraft
+                    idx1 = bs.traf.id.index(pair[0])
+                    idx2 = bs.traf.id.index(pair[1])
+                    done_pairs.append((idx1,idx2))
+                    if (idx2,idx1) in done_pairs:
+                        continue
+                        
+                    bs.traf.CDLogger.conflog.log(pair[0], pair[1],
+                                    bs.traf.lat[idx1], bs.traf.lon[idx1],bs.traf.alt[idx1],
+                                    bs.traf.lat[idx2], bs.traf.lon[idx2],bs.traf.alt[idx2])
+                
+        self.prevconfpairs = set(bs.traf.cd.confpairs)
+        
+        # Losses of separation as well
+        # We want to track the LOS, and log the minimum distance and altitude between these two aircraft.
+        # This gives us the lospairs that were here previously but aren't anymore
+        lospairs_out = list(self.prevlospairs - set(bs.traf.cd.lospairs))
+        
+        # Attempt to calculate current distance for all current lospairs, and store it in the dictionary
+        # if entry doesn't exist yet or if calculated distance is smaller.
+        for pair in bs.traf.cd.lospairs:
+            # Check if the aircraft still exist
+            if (pair[0] in bs.traf.id) and (pair[1] in bs.traf.id):
+                idx1 = bs.traf.id.index(pair[0])
+                idx2 = bs.traf.id.index(pair[1])
+                # Calculate current distance between them [m]
+                losdistance = kwikdist(bs.traf.lat[idx1], bs.traf.lon[idx1], bs.traf.lat[idx2], bs.traf.lon[idx2])*nm
+                # To avoid repeats, the dictionary entry is DxDy, where x<y. So D32 and D564 would be D32D564
+                dictkey = pair[0]+pair[1] if int(pair[0][2:]) < int(pair[1][2:]) else pair[1]+pair[0]
+                if dictkey not in self.losmindist:
+                    # Set the entry
+                    self.losmindist[dictkey] = [losdistance, 
+                                                bs.traf.lat[idx1], bs.traf.lon[idx1], bs.traf.alt[idx1], 
+                                                bs.traf.lat[idx2], bs.traf.lon[idx2], bs.traf.alt[idx2],
+                                                bs.sim.simt, bs.sim.simt]
+                    # This guy here                             ^ is the LOS start time
+                else:
+                    # Entry exists, check if calculated is smaller
+                    if self.losmindist[dictkey][0] > losdistance:
+                        # It's smaller. Make sure to keep the LOS start time
+                        self.losmindist[dictkey] = [losdistance, 
+                                                bs.traf.lat[idx1], bs.traf.lon[idx1], bs.traf.alt[idx1], 
+                                                bs.traf.lat[idx2], bs.traf.lon[idx2], bs.traf.alt[idx2],
+                                                bs.sim.simt, self.losmindist[dictkey][8]]
+        
+        # Log data if there are aircraft that are no longer in LOS
+        if lospairs_out:
+            done_pairs = []
+            for pair in set(lospairs_out):
+                # Get their dictkey
+                dictkey = pair[0]+pair[1] if int(pair[0][2:]) < int(pair[1][2:]) else pair[1]+pair[0]
+                # Is this pair in the dictionary?
+                if dictkey not in self.losmindist:
+                    # Pair was already logged, continue
+                    continue
+                losdata = self.losmindist[dictkey]
+                # Remove this aircraft pair from losmindist
+                self.losmindist.pop(dictkey)
+                #Log the LOS
+                bs.traf.CDLogger.loslog.log(losdata[8], losdata[7], pair[0], pair[1],
+                                losdata[1], losdata[2],losdata[3],
+                                losdata[4], losdata[5],losdata[6],
+                                losdata[0])
+                
+        
+        self.prevlospairs = set(bs.traf.cd.lospairs)
 
 
     def reset(self):

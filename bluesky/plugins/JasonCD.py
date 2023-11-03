@@ -1,5 +1,5 @@
 import bluesky as bs
-from bluesky import stack 
+from bluesky import stack
 from bluesky.traffic import Route
 from bluesky.core import Entity, timed_function
 from bluesky.stack import command
@@ -14,61 +14,68 @@ import pandas as pd
 import numpy as np
 from bluesky.traffic.asas import ConflictDetection
 from bluesky.tools import geo, datalog
+from matplotlib.patches import Circle
 
 
 def init_plugin():
     # Configuration parameters
     config = {
         # The name of your plugin
-        'plugin_name':     'JASONCD',
-
+        "plugin_name": "JASONCD",
         # The type of this plugin. For now, only simulation plugins are possible.
-        'plugin_type':     'sim'
+        "plugin_type": "sim",
     }
 
     return config
 
-confheader = \
-    '#######################################################\n' + \
-    'CONF LOG\n' + \
-    'Conflict Statistics\n' + \
-    '#######################################################\n\n' + \
-    'Parameters [Units]:\n' + \
-    'Simulation time [s], ' + \
-    'Unique CONF ID [-]' + \
-    'ACID1 [-],' + \
-    'ACID2 [-],' + \
-    'LAT1 [deg],' + \
-    'LON1 [deg],' + \
-    'ALT1 [ft],' + \
-    'LAT2 [deg],' + \
-    'LON2 [deg],' + \
-    'ALT2 [ft]\n'
 
-uniqueconflosheader = \
-    '#######################################################\n' + \
-    'Unique CONF LOS LOG\n' + \
-    'Shows whether unique conflicts results in a LOS\n' + \
-    '#######################################################\n\n' + \
-    'Parameters [Units]:\n' + \
-    'Unique CONF ID, ' + \
-    'Resulted in LOS\n'
+confheader = (
+    "#######################################################\n"
+    + "CONF LOG\n"
+    + "Conflict Statistics\n"
+    + "#######################################################\n\n"
+    + "Parameters [Units]:\n"
+    + "Simulation time [s], "
+    + "Unique CONF ID [-]"
+    + "ACID1 [-],"
+    + "ACID2 [-],"
+    + "LAT1 [deg],"
+    + "LON1 [deg],"
+    + "ALT1 [ft],"
+    + "LAT2 [deg],"
+    + "LON2 [deg],"
+    + "ALT2 [ft]\n"
+)
+
+uniqueconflosheader = (
+    "#######################################################\n"
+    + "Unique CONF LOS LOG\n"
+    + "Shows whether unique conflicts results in a LOS\n"
+    + "#######################################################\n\n"
+    + "Parameters [Units]:\n"
+    + "Unique CONF ID, "
+    + "Resulted in LOS\n"
+)
+
 
 class JasonCD(ConflictDetection):
     def __init__(self):
         super().__init__()
         # New detection parameters
-        self.predicted_waypoints = [] # Predicted list of waypoints
-        self.qdr_mat = np.array([]) # QDR for all aircraft
-        self.dist_mat = np.array([]) # Distance for all aircraft
+        self.predicted_waypoints = []  # Predicted list of waypoints
+        self.qdr_mat = np.array([])  # QDR for all aircraft
+        self.dist_mat = np.array([])  # Distance for all aircraft
         self.dtlookahead_def = 30
-        self.measurement_freq = 5
+        self.measurement_freq = 3
         self.rpz_def = 50
-        
+        self.plot_toggle = False
+
         # Logging
-        self.conflictlog = datalog.crelog('CDR_CONFLICTLOG', None, confheader)
-        self.uniqueconfloslog = datalog.crelog('CDR_WASLOSLOG', None, uniqueconflosheader)
-        
+        self.conflictlog = datalog.crelog("CDR_CONFLICTLOG", None, confheader)
+        self.uniqueconfloslog = datalog.crelog(
+            "CDR_WASLOSLOG", None, uniqueconflosheader
+        )
+
         # Conflict related
 
         self.prevconfpairs = set()
@@ -77,17 +84,16 @@ class JasonCD(ConflictDetection):
 
         self.unique_conf_dict = dict()
 
-        self.counter2id = dict() # Keep track of the other way around
+        self.counter2id = dict()  # Keep track of the other way around
 
-        self.unique_conf_id_counter = 0 # Start from 0, go up
-        
+        self.unique_conf_id_counter = 0  # Start from 0, go up
 
     def reset(self):
         super().reset()
         # Reset the things
-        self.predicted_waypoints = [] # Predicted list of waypoints
-        self.qdr_mat = np.array([]) # QDR for all aircraft
-        self.dist_mat = np.array([]) # Distance for all aircraft
+        self.predicted_waypoints = []  # Predicted list of waypoints
+        self.qdr_mat = np.array([])  # QDR for all aircraft
+        self.dist_mat = np.array([])  # Distance for all aircraft
 
         # Conflict related
 
@@ -97,67 +103,71 @@ class JasonCD(ConflictDetection):
 
         self.unique_conf_dict = dict()
 
-        self.counter2id = dict() # Keep track of the other way around
+        self.counter2id = dict()  # Keep track of the other way around
 
-        self.unique_conf_id_counter = 0 # Start from 0, go up
+        self.unique_conf_id_counter = 0  # Start from 0, go up
 
-    
     def clearconfdb(self):
         return super().clearconfdb()
-    
+
     def update(self, ownship, intruder):
-        ''' Perform an update step of the Conflict Detection implementation. '''
-        self.confpairs, self.inconf = \
-                self.detect(ownship, intruder, self.rpz_def, self.hpz, self.dtlookahead_def)
+        """Perform an update step of the Conflict Detection implementation."""
+        self.confpairs, self.inconf, self.lospairs = self.detect(
+            ownship, intruder, self.rpz_def, self.hpz, self.dtlookahead_def
+        )
 
         # confpairs has conflicts observed from both sides (a, b) and (b, a)
         # confpairs_unique keeps only one of these
         confpairs_unique = {frozenset(pair) for pair in self.confpairs}
-        #lospairs_unique = {frozenset(pair) for pair in self.lospairs}
+        # lospairs_unique = {frozenset(pair) for pair in self.lospairs}
 
         self.confpairs_all.extend(confpairs_unique - self.confpairs_unique)
-        #self.lospairs_all.extend(lospairs_unique - self.lospairs_unique)
+        # self.lospairs_all.extend(lospairs_unique - self.lospairs_unique)
 
         # Update confpairs_unique and lospairs_unique
         self.confpairs_unique = confpairs_unique
-        #self.lospairs_unique = lospairs_unique
-        
+        # self.lospairs_unique = lospairs_unique
+
         # Update the logging
         self.update_log()
-    
+
     def detect(self, ownship, intruder, rpz, hpz, dtlookahead):
         # Do state-based detection for LOS information
-        #confpairs_s, lospairs_s, inconf_s, tcpamax_s, qdr_s, \
+        # confpairs_s, lospairs_s, inconf_s, tcpamax_s, qdr_s, \
         #    dist_s, dcpa_s, tcpa_s, tLOS_s, qdr_mat, dist_mat = \
-        #        self.sb_detect(ownship, intruder, self.rpz_def, self.hpz, self.dtlookahead_def)    
-                
+        #        self.sb_detect(ownship, intruder, self.rpz_def, self.hpz, self.dtlookahead_def)
+
         # Save the qdr_mat and dist_mat, the matrices that have the information about all aircraft
-        #self.qdr_mat = qdr_mat
-        #self.dist_mat = dist_mat 
-                
+        # self.qdr_mat = qdr_mat
+        # self.dist_mat = dist_mat
+
         # Do the own detection
-        confpairs, inconf, self.predicted_waypoints = self.jason_detect(ownship, intruder, self.rpz_def, self.hpz, self.dtlookahead_def)
+        # confpairs, inconf, self.predicted_waypoints = self.jason_detect(ownship, intruder, self.rpz_def, self.hpz, self.dtlookahead_def)
 
-        array = self.traj_detect(ownship, intruder, self.rpz_def, self.dtlookahead_def, self.measurement_freq)
+        array, confpairs, inconf, lospairs = self.traj_detect(
+            ownship, intruder, self.rpz_def, self.dtlookahead_def, self.measurement_freq
+        )
 
-        return confpairs, inconf
-    
+        return confpairs, inconf, lospairs
+
     def jason_detect(self, ownship, intruder, rpz, hpz, dtlookahead):
         # All aircraft are within 300m of each other are in conflict!! (definitely change this)
-        confpairs_idx = np.array(np.where(self.dist_mat<300)).T
+        confpairs_idx = np.array(np.where(self.dist_mat < 300)).T
         # These are aircraft IDXs though, and BlueSky likes its confpairs in ACIDs, so convert them.
-        confpairs_acid = [(bs.traf.id[idx1], bs.traf.id[idx2]) for idx1, idx2 in confpairs_idx]
+        confpairs_acid = [
+            (bs.traf.id[idx1], bs.traf.id[idx2]) for idx1, idx2 in confpairs_idx
+        ]
         # Set the flag for the aircraft that are in confpairs to 1
         inconf = np.zeros(bs.traf.ntraf)
         for idx1, idx2 in confpairs_idx:
             inconf[idx1] = 1
-        
+
         # Empty prediction for now
         predicted_waypoints = []
-        
+
         return confpairs_acid, inconf, predicted_waypoints
-    
-    def traj_detect(self,ownship, intruder, rpz, dtlookahead, measurement_freq):
+
+    def traj_detect(self, ownship, intruder, rpz, dtlookahead, measurement_freq):
         try:
             bs.traf.id
         except:
@@ -166,7 +176,7 @@ class JasonCD(ConflictDetection):
         else:
             acids = bs.traf.id
 
-        array_measurement= []
+        array_measurement = []
         for acid in acids:
             time = 0
             acidx = bs.traf.id2idx(acid)
@@ -178,296 +188,464 @@ class JasonCD(ConflictDetection):
             rpz = 50
             while time < 30:
                 if first_run == True:
-                    _, dist = kwikqdrdist(bs.traf.lat[acidx], bs.traf.lon[acidx], acrte.wplat[current_wp], acrte.wplon[current_wp])
+                    _, dist = kwikqdrdist(
+                        bs.traf.lat[acidx],
+                        bs.traf.lon[acidx],
+                        acrte.wplat[current_wp],
+                        acrte.wplon[current_wp],
+                    )
                     dist *= nm
 
-                    #Drone going towards a turn in the first run
+                    # Drone going towards a turn in the first run
                     if acrte.wpflyturn[current_wp] == True:
-                        wpqdr, _ = kwikqdrdist(acrte.wplat[current_wp -1], acrte.wplon[current_wp -1], acrte.wplat[current_wp], acrte.wplon[current_wp])
-                        nextwpqdr, _ = kwikqdrdist(acrte.wplat[current_wp], acrte.wplon[current_wp], acrte.wplat[current_wp +1], acrte.wplon[current_wp +1])
-                        turndist, turnrad, hdgchange= bs.traf.actwp.kwikcalcturn( 5*kts, 25, wpqdr, nextwpqdr)
-                        accel_dist = distaccel(15*kts, 5*kts, bs.traf.perf.axmax[acidx])
-                        turning_dist = abs(2*np.pi*turnrad * hdgchange/360)
-                    
+                        wpqdr, _ = kwikqdrdist(
+                            acrte.wplat[current_wp - 1],
+                            acrte.wplon[current_wp - 1],
+                            acrte.wplat[current_wp],
+                            acrte.wplon[current_wp],
+                        )
+                        nextwpqdr, _ = kwikqdrdist(
+                            acrte.wplat[current_wp],
+                            acrte.wplon[current_wp],
+                            acrte.wplat[current_wp + 1],
+                            acrte.wplon[current_wp + 1],
+                        )
+                        turndist, turnrad, hdgchange = bs.traf.actwp.kwikcalcturn(
+                            5 * kts, 25, wpqdr, nextwpqdr
+                        )
+                        accel_dist = distaccel(
+                            15 * kts, 5 * kts, bs.traf.perf.axmax[acidx]
+                        )
+                        turning_dist = abs(2 * np.pi * turnrad * hdgchange / 360)
+
                         if dist > turndist + accel_dist:
-                            #Cruise distance
-                            cruise_dist = dist - accel_dist - turndist 
-                            cruise_time = cruise_dist / (15*kts)
+                            # Cruise distance
+                            cruise_dist = dist - accel_dist - turndist
+                            cruise_time = cruise_dist / (15 * kts)
 
-                            #Deceleration time
-                            accel_time = abs(15*kts - 5*kts)/ bs.traf.perf.axmax[acidx]
+                            # Deceleration time
+                            accel_time = (
+                                abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                            )
 
-                            #No turn time since turn is made for the second waypoint
+                            # No turn time since turn is made for the second waypoint
                             start_turn = True
 
-                            #Add it all up
+                            # Add it all up
                             time_diff = cruise_time + accel_time
                             time += time_diff
-                            
-                            current_wp +=1
+
+                            current_wp += 1
                             first_run = False
 
-                            #bs.scr.echo(f"Initial turn Cruise region time: {time}")
+                            # bs.scr.echo(f"Initial turn Cruise region time: {time}")
 
                         else:
+                            # deceleration time
+                            accel_time = (
+                                abs(bs.traf.tas[acidx] - 5 * kts)
+                                / bs.traf.perf.axmax[acidx]
+                            )
 
-                            #deceleration time
-                            accel_time = abs(bs.traf.tas[acidx] - 5*kts)/ bs.traf.perf.axmax[acidx]
-
-                            #Turn time half cuz only till current_wp
+                            # Turn time half cuz only till current_wp
                             start_turn = True
 
-                            #Add it all up
+                            # Add it all up
                             time_diff = accel_time
                             time += time_diff
 
-                            current_wp +=1
+                            current_wp += 1
                             first_run = False
 
-                            #bs.scr.echo(f"Initial turn Decell region time: {time}")
+                            # bs.scr.echo(f"Initial turn Decell region time: {time}")
 
-
-                    #Drone going away from a turn in the first run
-                    elif acrte.wpflyturn[current_wp-1] == True:
-                        wpqdr, _ = kwikqdrdist(acrte.wplat[current_wp -2], acrte.wplon[current_wp -2], acrte.wplat[current_wp-1], acrte.wplon[current_wp-1])
-                        nextwpqdr, leg_dist = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp], acrte.wplon[current_wp])
-                        leg_dist = leg_dist *nm
-                        turndist, turnrad, hdgchange= bs.traf.actwp.kwikcalcturn( 5*kts, 25, wpqdr, nextwpqdr)
-                        accel_dist = distaccel( 5*kts, 15*kts, bs.traf.perf.axmax[acidx])
-                        turning_dist = abs(2*np.pi*turnrad * hdgchange/360)
+                    # Drone going away from a turn in the first run
+                    elif acrte.wpflyturn[current_wp - 1] == True:
+                        wpqdr, _ = kwikqdrdist(
+                            acrte.wplat[current_wp - 2],
+                            acrte.wplon[current_wp - 2],
+                            acrte.wplat[current_wp - 1],
+                            acrte.wplon[current_wp - 1],
+                        )
+                        nextwpqdr, leg_dist = kwikqdrdist(
+                            acrte.wplat[current_wp - 1],
+                            acrte.wplon[current_wp - 1],
+                            acrte.wplat[current_wp],
+                            acrte.wplon[current_wp],
+                        )
+                        leg_dist = leg_dist * nm
+                        turndist, turnrad, hdgchange = bs.traf.actwp.kwikcalcturn(
+                            5 * kts, 25, wpqdr, nextwpqdr
+                        )
+                        accel_dist = distaccel(
+                            5 * kts, 15 * kts, bs.traf.perf.axmax[acidx]
+                        )
+                        turning_dist = abs(2 * np.pi * turnrad * hdgchange / 360)
                         cruise_dist = leg_dist - accel_dist - turndist
-                        
 
                         if dist < accel_dist:
-                            #acceleration time
-                            accel_time = abs(bs.traf.tas[acidx] - 15*kts)/ bs.traf.perf.axmax[acidx]
+                            # acceleration time
+                            accel_time = (
+                                abs(bs.traf.tas[acidx] - 15 * kts)
+                                / bs.traf.perf.axmax[acidx]
+                            )
 
                             time_diff = accel_time
                             time += time_diff
 
-                            current_wp +=1
+                            current_wp += 1
                             first_run = False
 
                         elif dist < accel_dist + cruise_dist:
-                            #acceleration time
-                            accel_time = abs(15* kts - 5*kts)/ bs.traf.perf.axmax[acidx]
+                            # acceleration time
+                            accel_time = (
+                                abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                            )
 
-                            #cruise time
+                            # cruise time
                             partial_cruise_dist = dist - accel_dist
-                            cruise_time = partial_cruise_dist / (5*kts)
+                            cruise_time = partial_cruise_dist / (5 * kts)
 
-                            #Add it all up
+                            # Add it all up
                             time_diff = cruise_time + accel_time
                             time += time_diff
 
-                            current_wp +=1
+                            current_wp += 1
                             first_run = False
 
-                        else: 
-                            #acceleration time
-                            accel_time = abs(15* kts - 5*kts)/ bs.traf.perf.axmax[acidx]
+                        else:
+                            # acceleration time
+                            accel_time = (
+                                abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                            )
 
-                            #cruise time
-                            cruise_time = cruise_dist / (5*kts)
+                            # cruise time
+                            cruise_time = cruise_dist / (5 * kts)
 
-                            #Turning time
-                            turn_time = turning_dist * 0.5/ (5*kts)
+                            # Turning time
+                            turn_time = turning_dist * 0.5 / (5 * kts)
 
-                            #Add it all up
+                            # Add it all up
                             time_diff = cruise_time + accel_time + turn_time
                             time += time_diff
 
-                            current_wp +=1
+                            current_wp += 1
                             first_run = False
-                            
-                    #Regular cruise
+
+                    # Regular cruise
                     else:
-                        time += dist/ (15*kts)
+                        time += dist / (15 * kts)
                         first_run = False
-                        current_wp +=1
+                        current_wp += 1
 
-                    
-
-                #Iterations after turn
+                # Iterations after turn
                 elif start_turn == True:
                     if acrte.wpflyturn[current_wp] == True:
-                        #second part of initial turn
-                        initial_turn_time = turning_dist/ (5*kts)
+                        # second part of initial turn
+                        initial_turn_time = turning_dist / (5 * kts)
                         initial_turndist = turndist
 
-                        #Calculations for the second turn parameters
-                        wpqdr, dist = kwikqdrdist(acrte.wplat[current_wp -1], acrte.wplon[current_wp -1], acrte.wplat[current_wp], acrte.wplon[current_wp])
-                        dist = dist *nm
-                        nextwpqdr, _ = kwikqdrdist(acrte.wplat[current_wp], acrte.wplon[current_wp], acrte.wplat[current_wp +1], acrte.wplon[current_wp +1])
-                        turndist, turnrad, hdgchange= bs.traf.actwp.kwikcalcturn( 5*kts, 25, wpqdr, nextwpqdr)
+                        # Calculations for the second turn parameters
+                        wpqdr, dist = kwikqdrdist(
+                            acrte.wplat[current_wp - 1],
+                            acrte.wplon[current_wp - 1],
+                            acrte.wplat[current_wp],
+                            acrte.wplon[current_wp],
+                        )
+                        dist = dist * nm
+                        nextwpqdr, _ = kwikqdrdist(
+                            acrte.wplat[current_wp],
+                            acrte.wplon[current_wp],
+                            acrte.wplat[current_wp + 1],
+                            acrte.wplon[current_wp + 1],
+                        )
+                        turndist, turnrad, hdgchange = bs.traf.actwp.kwikcalcturn(
+                            5 * kts, 25, wpqdr, nextwpqdr
+                        )
 
-                        #Calculate the leg distance, acceleration distance and turning distance (total distance covered by turn) for second turn
-                        turning_dist = abs(2*np.pi*turnrad * hdgchange/360)
+                        # Calculate the leg distance, acceleration distance and turning distance (total distance covered by turn) for second turn
+                        turning_dist = abs(2 * np.pi * turnrad * hdgchange / 360)
 
-                        #Cruise distance with turning speed instead of cruise
+                        # Cruise distance with turning speed instead of cruise
                         cruise_dist = dist - turndist - initial_turndist
-                        cruise_time = cruise_dist / (5*kts)
+                        cruise_time = cruise_dist / (5 * kts)
 
                         # Second turn time times half cuz only till current_wp
                         start_turn = True
 
-                        #Total time
-                        time_diff = initial_turn_time + cruise_time 
+                        # Total time
+                        time_diff = initial_turn_time + cruise_time
                         time += time_diff
-                        
-                        current_wp +=1
 
+                        current_wp += 1
 
                     else:
-                        #The turn
-                        turn_time = turning_dist/ (5*kts)
+                        # The turn
+                        turn_time = turning_dist / (5 * kts)
 
-                        #Acceleration
-                        accel_dist = distaccel(5*kts, 15*kts, bs.traf.perf.axmax[acidx])
-                        accel_time = abs(15*kts - 5*kts)/ bs.traf.perf.axmax[acidx]
+                        # Acceleration
+                        accel_dist = distaccel(
+                            5 * kts, 15 * kts, bs.traf.perf.axmax[acidx]
+                        )
+                        accel_time = abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
 
-                        #Cruise whilst still being in turning speed
-                        _ , dist = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp], acrte.wplon[current_wp])
+                        # Cruise whilst still being in turning speed
+                        _, dist = kwikqdrdist(
+                            acrte.wplat[current_wp - 1],
+                            acrte.wplon[current_wp - 1],
+                            acrte.wplat[current_wp],
+                            acrte.wplon[current_wp],
+                        )
                         dist = dist * nm
                         cruise_dist = dist - accel_dist - turndist
-                        cruise_time = cruise_dist / (5*kts)
+                        cruise_time = cruise_dist / (5 * kts)
 
-                        #Total time
+                        # Total time
                         time_diff = cruise_time + accel_time + turn_time
                         time += time_diff
-                        
-                        start_turn = False
-                        current_wp +=1
 
-                #Iterations after a regular leg
+                        start_turn = False
+                        current_wp += 1
+
+                # Iterations after a regular leg
                 else:
                     if acrte.wpflyturn[current_wp] == True:
-                        wpqdr, dist = kwikqdrdist(acrte.wplat[current_wp -1], acrte.wplon[current_wp -1], acrte.wplat[current_wp], acrte.wplon[current_wp])
-                        dist = dist *nm
-                        nextwpqdr, _ = kwikqdrdist(acrte.wplat[current_wp], acrte.wplon[current_wp], acrte.wplat[current_wp +1], acrte.wplon[current_wp +1])
-                        turndist, turnrad, hdgchange= bs.traf.actwp.kwikcalcturn( 5*kts, 25, wpqdr, nextwpqdr)
-                        
-                        #Calculate the leg distance, acceleration distance and turning distance (total distance covered by turn)
-                        accel_dist = distaccel(15*kts, 5*kts, bs.traf.perf.axmax[acidx])
-                        turning_dist = abs(2*np.pi*turnrad * hdgchange/360)
-                        
-                        #Cruise distance
-                        cruise_dist = dist - accel_dist - turndist 
-                        cruise_time = cruise_dist / (15*kts)
+                        wpqdr, dist = kwikqdrdist(
+                            acrte.wplat[current_wp - 1],
+                            acrte.wplon[current_wp - 1],
+                            acrte.wplat[current_wp],
+                            acrte.wplon[current_wp],
+                        )
+                        dist = dist * nm
+                        nextwpqdr, _ = kwikqdrdist(
+                            acrte.wplat[current_wp],
+                            acrte.wplon[current_wp],
+                            acrte.wplat[current_wp + 1],
+                            acrte.wplon[current_wp + 1],
+                        )
+                        turndist, turnrad, hdgchange = bs.traf.actwp.kwikcalcturn(
+                            5 * kts, 25, wpqdr, nextwpqdr
+                        )
 
-                        #Deceleration time
-                        accel_time = abs(15*kts - 5*kts)/ bs.traf.perf.axmax[acidx]
+                        # Calculate the leg distance, acceleration distance and turning distance (total distance covered by turn)
+                        accel_dist = distaccel(
+                            15 * kts, 5 * kts, bs.traf.perf.axmax[acidx]
+                        )
+                        turning_dist = abs(2 * np.pi * turnrad * hdgchange / 360)
 
-                        #Turn  time times half cuz only till current_wp
+                        # Cruise distance
+                        cruise_dist = dist - accel_dist - turndist
+                        cruise_time = cruise_dist / (15 * kts)
+
+                        # Deceleration time
+                        accel_time = abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+
+                        # Turn  time times half cuz only till current_wp
                         start_turn = True
 
-                        #Add it all up
+                        # Add it all up
                         time_diff = cruise_time + accel_time
                         time += time_diff
-  
-                        current_wp +=1
-                    
-                    else:
-                        _ , dist = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp], acrte.wplon[current_wp])
-                        dist = dist *nm
-                        time_diff = dist / (15*kts)
-                        time += time_diff                    
-                        current_wp +=1
 
-        #--------------------------------------------------------------------------------------------------------------------------------------------------
-            #Position Calculations
+                        current_wp += 1
+
+                    else:
+                        _, dist = kwikqdrdist(
+                            acrte.wplat[current_wp - 1],
+                            acrte.wplon[current_wp - 1],
+                            acrte.wplat[current_wp],
+                            acrte.wplon[current_wp],
+                        )
+                        dist = dist * nm
+                        time_diff = dist / (15 * kts)
+                        time += time_diff
+                        current_wp += 1
+
+                # --------------------------------------------------------------------------------------------------------------------------------------------------
+                # Position Calculations
                 if floor_div < time // measurement_freq:
-                    i= 0
+                    i = 0
                     value = int(time // measurement_freq) - floor_div
                     while i < value and floor_div < dtlookahead / measurement_freq:
                         floor_div += 1
                         overshoot_time = time - floor_div * measurement_freq
-                        #print(f"overshoot_time: {overshoot_time}")
-                        #print(f"floor_div: {floor_div}")
-                        #print(i)
-                        print(current_wp -1)
-                        print(acrte.wpname)
+                        # print(f"overshoot_time: {overshoot_time}")
+                        # print(f"floor_div: {floor_div}")
+                        # print(i)
 
-                        if acrte.wpflyturn[current_wp-1] == True:
-                            wpqdr, dist = kwikqdrdist(acrte.wplat[current_wp -2], acrte.wplon[current_wp -2], acrte.wplat[current_wp-1], acrte.wplon[current_wp-1])
-                            dist = dist *nm
-                            nextwpqdr, _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp ], acrte.wplon[current_wp])
-                            turndist, turnrad, hdgchange= bs.traf.actwp.kwikcalcturn( 5*kts, 25, wpqdr, nextwpqdr)
+                        if acrte.wpflyturn[current_wp - 1] == True:
+                            wpqdr, dist = kwikqdrdist(
+                                acrte.wplat[current_wp - 2],
+                                acrte.wplon[current_wp - 2],
+                                acrte.wplat[current_wp - 1],
+                                acrte.wplon[current_wp - 1],
+                            )
+                            dist = dist * nm
+                            nextwpqdr, _ = kwikqdrdist(
+                                acrte.wplat[current_wp - 1],
+                                acrte.wplon[current_wp - 1],
+                                acrte.wplat[current_wp],
+                                acrte.wplon[current_wp],
+                            )
+                            turndist, turnrad, hdgchange = bs.traf.actwp.kwikcalcturn(
+                                5 * kts, 25, wpqdr, nextwpqdr
+                            )
 
-                            accel_dist = distaccel(15*kts, 5*kts, bs.traf.perf.axmax[acidx])
-                            accel_time = abs(15*kts - 5*kts)/ bs.traf.perf.axmax[acidx]
+                            accel_dist = distaccel(
+                                15 * kts, 5 * kts, bs.traf.perf.axmax[acidx]
+                            )
+                            accel_time = (
+                                abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                            )
 
-                            #Ends in deceleration part before turn
+                            # Ends in deceleration part before turn
                             if overshoot_time < accel_time:
-                                overshoot_dist = 0.5 * bs.traf.perf.axmax[acidx] * (overshoot_time)**2 + 5 * kts * overshoot_time
-                                bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
-                                final_lat , final_lon = kwikpos(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bearing, overshoot_dist/nm)
+                                overshoot_dist = (
+                                    0.5
+                                    * bs.traf.perf.axmax[acidx]
+                                    * (overshoot_time) ** 2
+                                    + 5 * kts * overshoot_time
+                                )
+                                bearing, _ = kwikqdrdist(
+                                    acrte.wplat[current_wp - 1],
+                                    acrte.wplon[current_wp - 1],
+                                    acrte.wplat[current_wp - 2],
+                                    acrte.wplon[current_wp - 2],
+                                )
+                                final_lat, final_lon = kwikpos(
+                                    acrte.wplat[current_wp - 1],
+                                    acrte.wplon[current_wp - 1],
+                                    bearing,
+                                    overshoot_dist / nm,
+                                )
 
-                            #Ends in cruise part before turn
-                            else: 
+                            # Ends in cruise part before turn
+                            else:
                                 remaining_time = overshoot_time - accel_time
-                                overshoot_dist = accel_dist + remaining_time * 15*kts
-                                bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
-                                final_lat , final_lon = kwikpos(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bearing, overshoot_dist/nm)
+                                overshoot_dist = accel_dist + remaining_time * 15 * kts
+                                bearing, _ = kwikqdrdist(
+                                    acrte.wplat[current_wp - 1],
+                                    acrte.wplon[current_wp - 1],
+                                    acrte.wplat[current_wp - 2],
+                                    acrte.wplon[current_wp - 2],
+                                )
+                                final_lat, final_lon = kwikpos(
+                                    acrte.wplat[current_wp - 1],
+                                    acrte.wplon[current_wp - 1],
+                                    bearing,
+                                    overshoot_dist / nm,
+                                )
 
-
-
-                        elif acrte.wpflyturn[current_wp-2] == True:
-                            wpqdr, dist = kwikqdrdist(acrte.wplat[current_wp -3], acrte.wplon[current_wp -3], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
-                            dist = dist *nm
-                            nextwpqdr, leg_dist = kwikqdrdist(acrte.wplat[current_wp-2], acrte.wplon[current_wp-2], acrte.wplat[current_wp-1], acrte.wplon[current_wp-1])
+                        elif acrte.wpflyturn[current_wp - 2] == True:
+                            wpqdr, dist = kwikqdrdist(
+                                acrte.wplat[current_wp - 3],
+                                acrte.wplon[current_wp - 3],
+                                acrte.wplat[current_wp - 2],
+                                acrte.wplon[current_wp - 2],
+                            )
+                            dist = dist * nm
+                            nextwpqdr, leg_dist = kwikqdrdist(
+                                acrte.wplat[current_wp - 2],
+                                acrte.wplon[current_wp - 2],
+                                acrte.wplat[current_wp - 1],
+                                acrte.wplon[current_wp - 1],
+                            )
                             leg_dist *= nm
-                            turndist, turnrad, hdgchange= bs.traf.actwp.kwikcalcturn( 5*kts, 25, wpqdr, nextwpqdr)
+                            turndist, turnrad, hdgchange = bs.traf.actwp.kwikcalcturn(
+                                5 * kts, 25, wpqdr, nextwpqdr
+                            )
 
-                            accel_dist = distaccel(15*kts, 5*kts, bs.traf.perf.axmax[acidx])
-                            accel_time = abs(15*kts - 5*kts)/ bs.traf.perf.axmax[acidx]
+                            accel_dist = distaccel(
+                                15 * kts, 5 * kts, bs.traf.perf.axmax[acidx]
+                            )
+                            accel_time = (
+                                abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                            )
 
                             cruise_dist = leg_dist - turndist - accel_dist
-                            cruise_time = cruise_dist / 5 *kts
+                            cruise_time = cruise_dist / 5 * kts
 
                             if overshoot_time < accel_time:
-                                overshoot_dist = - 0.5 * bs.traf.perf.axmax[acidx] * (overshoot_time)**2 + 15 * kts * overshoot_time
-                                bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
-                                final_lat , final_lon = kwikpos(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bearing, overshoot_dist/nm)
+                                overshoot_dist = (
+                                    -0.5
+                                    * bs.traf.perf.axmax[acidx]
+                                    * (overshoot_time) ** 2
+                                    + 15 * kts * overshoot_time
+                                )
+                                bearing, _ = kwikqdrdist(
+                                    acrte.wplat[current_wp - 1],
+                                    acrte.wplon[current_wp - 1],
+                                    acrte.wplat[current_wp - 2],
+                                    acrte.wplon[current_wp - 2],
+                                )
+                                final_lat, final_lon = kwikpos(
+                                    acrte.wplat[current_wp - 1],
+                                    acrte.wplon[current_wp - 1],
+                                    bearing,
+                                    overshoot_dist / nm,
+                                )
 
                             elif overshoot_time < accel_time + cruise_time:
                                 remaining_time = overshoot_time - accel_time
-                                overshoot_dist = accel_dist + remaining_time * 5*kts
-                                bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
-                                final_lat , final_lon = kwikpos(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bearing, overshoot_dist/nm)
-
+                                overshoot_dist = accel_dist + remaining_time * 5 * kts
+                                bearing, _ = kwikqdrdist(
+                                    acrte.wplat[current_wp - 1],
+                                    acrte.wplon[current_wp - 1],
+                                    acrte.wplat[current_wp - 2],
+                                    acrte.wplon[current_wp - 2],
+                                )
+                                final_lat, final_lon = kwikpos(
+                                    acrte.wplat[current_wp - 1],
+                                    acrte.wplon[current_wp - 1],
+                                    bearing,
+                                    overshoot_dist / nm,
+                                )
 
                             else:
-                                final_lat = acrte.wplat[current_wp -2]
-                                final_lon = acrte.wplon[current_wp -2]
-
+                                final_lat = acrte.wplat[current_wp - 2]
+                                final_lon = acrte.wplon[current_wp - 2]
 
                         else:
-                            overshoot_dist = overshoot_time * 15*kts
-                            if acrte.wplat[current_wp-1] == acrte.wplat[current_wp-2]:
-                                bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bs.traf.lat[acidx], bs.traf.lon[acidx])
+                            overshoot_dist = overshoot_time * 15 * kts
+                            if (
+                                acrte.wplat[current_wp - 1]
+                                == acrte.wplat[current_wp - 2]
+                            ):
+                                bearing, _ = kwikqdrdist(
+                                    acrte.wplat[current_wp - 1],
+                                    acrte.wplon[current_wp - 1],
+                                    bs.traf.lat[acidx],
+                                    bs.traf.lon[acidx],
+                                )
                             else:
-                                bearing , _ = kwikqdrdist(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], acrte.wplat[current_wp-2], acrte.wplon[current_wp-2])
-                            final_lat, final_lon = kwikpos(acrte.wplat[current_wp-1], acrte.wplon[current_wp-1], bearing, overshoot_dist/nm)
+                                bearing, _ = kwikqdrdist(
+                                    acrte.wplat[current_wp - 1],
+                                    acrte.wplon[current_wp - 1],
+                                    acrte.wplat[current_wp - 2],
+                                    acrte.wplon[current_wp - 2],
+                                )
+                            final_lat, final_lon = kwikpos(
+                                acrte.wplat[current_wp - 1],
+                                acrte.wplon[current_wp - 1],
+                                bearing,
+                                overshoot_dist / nm,
+                            )
 
-                            
-
-                        #Data record
-                        #print(f"{acid} , {final_lat}")
-                        array_measurement.append([acid, floor_div, final_lat, final_lon])
-                        i +=1
+                        # Data record
+                        # print(f"{acid} , {final_lat}")
+                        array_measurement.append(
+                            [acid, floor_div, final_lat, final_lon]
+                        )
+                        i += 1
 
                 try:
                     acrte.wpflyturn[current_wp]
                 except:
                     break
 
-          
-        #print(array_measurement)
-
-        confpairs =[]
+        confpairs = []
         df = pd.DataFrame(array_measurement, columns=["acid", "part", "lat", "lon"])
-        #print(df)
+        # print(df)
 
         try:
             parts = max(df["part"])
@@ -476,23 +654,84 @@ class JasonCD(ConflictDetection):
         else:
             parts = max(df["part"])
 
-            for i in range(1, parts+1):
-                qdr,dist = geo.kwikqdrdist_matrix(np.asmatrix(df[df["part"] ==i ].lat),np.asmatrix(df[df["part"] ==i ].lon), np.asmatrix(df[df["part"] ==i ].lat), np.asmatrix(df[df["part"] ==i ].lon))
-                I = np.eye(len(df[df["part"] ==i]["acid"].unique()))
+            for i in range(1, parts + 1):
+                qdr, dist = geo.kwikqdrdist_matrix(
+                    np.asmatrix(df[df["part"] == i].lat),
+                    np.asmatrix(df[df["part"] == i].lon),
+                    np.asmatrix(df[df["part"] == i].lat),
+                    np.asmatrix(df[df["part"] == i].lon),
+                )
+                I = np.eye(len(df[df["part"] == i]["acid"].unique()))
                 qdr = np.asarray(qdr)
                 dist = np.asarray(dist) * nm + 1e9 * I
-                #print(dist)
+
                 conflicts = np.column_stack(np.where(dist < rpz))
+                #print(conflicts)
                 for pair in conflicts:
-                    conflictpair = (df["acid"].unique()[pair[0]], df["acid"].unique()[pair[1]])
+                    #print(df["acid"].unique()[pair[0]])
+                    conflictpair = (
+                        df[df["part"] == i].acid.unique()[pair[0]],
+                        df[df["part"] == i].acid.unique()[pair[1]],
+                    )
                     if conflictpair not in confpairs:
                         confpairs.append(conflictpair)
 
-        #Conflict Pairs
-        #print(confpairs)
+        # Conflict Pairs
+        # print(confpairs)
         bs.scr.echo(f"{confpairs}")
         self.confpairs = confpairs
-        confpairs_idx = [(bs.traf.id2idx(acid1), bs.traf.id2idx(acid2)) for acid1, acid2 in confpairs]
+
+        # Conflict plot
+        if self.plot_toggle:
+            print(dist)
+            done_pairs = []
+            for entry in confpairs:
+                if entry[0] and entry[1] in done_pairs:
+                    continue
+                done_pairs.append(entry[0])
+                done_pairs.append(entry[1])
+                timer = 0
+                fig = plt.figure()
+                ax = fig.add_subplot()
+                plt.scatter(
+                    df[df["acid"] == entry[0]].lat,
+                    df[df["acid"] == entry[0]].lon,
+                    color="blue",
+                    label=f"{entry[0]}",
+                )
+                plt.scatter(
+                    df[df["acid"] == entry[1]].lat,
+                    df[df["acid"] == entry[1]].lon,
+                    color="red",
+                    label=f"{entry[1]}",
+                )
+                for coords in zip(
+                    df[df["acid"] == entry[0]].lat,
+                    df[df["acid"] == entry[0]].lon,
+                    df[df["acid"] == entry[1]].lat,
+                    df[df["acid"] == entry[1]].lon,
+                ):
+                    ax.add_patch(
+                        Circle(
+                            coords[:2], radius=0.0005, ec="blue", fc="none", alpha=0.6
+                        )
+                    )
+                    ax.add_patch(
+                        Circle(
+                            coords[2:4], radius=0.0005, ec="red", fc="none", alpha=0.6
+                        )
+                    )
+                    plt.text(coords[0], coords[1], str(timer))
+                    plt.text(coords[2], coords[3], str(timer))
+                    timer += 1
+
+                ax.set_aspect("equal", adjustable="box")
+                ax.legend()
+            plt.show()
+
+        confpairs_idx = [
+            (bs.traf.id2idx(acid1), bs.traf.id2idx(acid2)) for acid1, acid2 in confpairs
+        ]
 
         inconf = np.zeros(bs.traf.ntraf)
         for idx1, idx2 in confpairs_idx:
@@ -500,30 +739,36 @@ class JasonCD(ConflictDetection):
 
         self.inconf = inconf
 
-        #LoS Pairs
+        # LoS Pairs
         I = np.eye(ownship.ntraf)
-        _, dist_state = qdr, dist = geo.kwikqdrdist_matrix(np.asmatrix(ownship.lat), np.asmatrix(ownship.lon),
-                                    np.asmatrix(intruder.lat), np.asmatrix(intruder.lon))
+        _, dist_state = qdr, dist = geo.kwikqdrdist_matrix(
+            np.asmatrix(ownship.lat),
+            np.asmatrix(ownship.lon),
+            np.asmatrix(intruder.lat),
+            np.asmatrix(intruder.lon),
+        )
         dist_state = np.asarray(dist_state) * nm + 1e9 * I
-        swlos = (dist_state < rpz)
+        swlos = dist_state < rpz
         lospairs = [(ownship.id[i], ownship.id[j]) for i, j in zip(*np.where(swlos))]
-        #bs.scr.echo(f"{lospairs}")
+        # bs.scr.echo(f"{lospairs}")
         self.lospairs = lospairs
-        
 
-        return array_measurement
-        
+        return array_measurement, confpairs, inconf, lospairs
+
     def sb_detect(self, ownship, intruder, rpz, hpz, dtlookahead):
-        ''' State-based detection.'''
+        """State-based detection."""
         # Identity matrix of order ntraf: avoid ownship-ownship detected conflicts
         I = np.eye(ownship.ntraf)
 
         # Horizontal conflict ------------------------------------------------------
 
         # qdrlst is for [i,j] qdr from i to j, from perception of ADSB and own coordinates
-        qdr, dist = geo.kwikqdrdist_matrix(np.asmatrix(ownship.lat), np.asmatrix(ownship.lon),
-                                    np.asmatrix(intruder.lat), np.asmatrix(intruder.lon))
-        
+        qdr, dist = geo.kwikqdrdist_matrix(
+            np.asmatrix(ownship.lat),
+            np.asmatrix(ownship.lon),
+            np.asmatrix(intruder.lat),
+            np.asmatrix(intruder.lon),
+        )
 
         # Convert back to array to allow element-wise array multiplications later on
         # Convert to meters and add large value to own/own pairs
@@ -564,7 +809,9 @@ class JasonCD(ConflictDetection):
         swhorconf = dcpa2 < R2  # conflict or not
 
         # Calculate times of entering and leaving horizontal conflict
-        dxinhor = np.sqrt(np.maximum(0., R2 - dcpa2))  # half the distance travelled inzide zone
+        dxinhor = np.sqrt(
+            np.maximum(0.0, R2 - dcpa2)
+        )  # half the distance travelled inzide zone
         dtinhor = dxinhor / vrel
 
         tinhor = np.where(swhorconf, tcpa - dtinhor, 1e8)  # Set very large if no conf
@@ -573,11 +820,16 @@ class JasonCD(ConflictDetection):
         # Vertical conflict --------------------------------------------------------
 
         # Vertical crossing of disk (-dh,+dh)
-        dalt = ownship.alt.reshape((1, ownship.ntraf)) - \
-            intruder.alt.reshape((1, ownship.ntraf)).T  + 1e9 * I
+        dalt = (
+            ownship.alt.reshape((1, ownship.ntraf))
+            - intruder.alt.reshape((1, ownship.ntraf)).T
+            + 1e9 * I
+        )
 
-        dvs = ownship.vs.reshape(1, ownship.ntraf) - \
-            intruder.vs.reshape(1, ownship.ntraf).T
+        dvs = (
+            ownship.vs.reshape(1, ownship.ntraf)
+            - intruder.vs.reshape(1, ownship.ntraf).T
+        )
         dvs = np.where(np.abs(dvs) < 1e-6, 1e-6, dvs)  # prevent division by zero
 
         # Check for passing through each others zone
@@ -592,8 +844,14 @@ class JasonCD(ConflictDetection):
         tinconf = np.maximum(tinver, tinhor)
         toutconf = np.minimum(toutver, touthor)
 
-        swconfl = np.array(swhorconf * (tinconf <= toutconf) * (toutconf > 0.0) *
-                           np.asarray(tinconf < np.asmatrix(dtlookahead).T) * (1.0 - I), dtype=bool)
+        swconfl = np.array(
+            swhorconf
+            * (tinconf <= toutconf)
+            * (toutconf > 0.0)
+            * np.asarray(tinconf < np.asmatrix(dtlookahead).T)
+            * (1.0 - I),
+            dtype=bool,
+        )
 
         # --------------------------------------------------------------------------
         # Update conflict lists
@@ -607,18 +865,29 @@ class JasonCD(ConflictDetection):
         swlos = (dist < rpz) * (np.abs(dalt) < hpz)
         lospairs = [(ownship.id[i], ownship.id[j]) for i, j in zip(*np.where(swlos))]
 
-        return confpairs, lospairs, inconf, tcpamax, \
-            qdr[swconfl], dist[swconfl], np.sqrt(dcpa2[swconfl]), \
-                tcpa[swconfl], tinconf[swconfl], qdr, dist
-    
+        return (
+            confpairs,
+            lospairs,
+            inconf,
+            tcpamax,
+            qdr[swconfl],
+            dist[swconfl],
+            np.sqrt(dcpa2[swconfl]),
+            tcpa[swconfl],
+            tinconf[swconfl],
+            qdr,
+            dist,
+        )
 
     def update_log(self):
-        '''Here, we are logging the information for current conflicts as well as
-        whether these conflicts resulted in a LOS or not.'''
-        confpairs_new = list(set(self.confpairs) - self.prevconfpairs) # New confpairs
-        confpairs_out = list(self.prevconfpairs - set(self.confpairs)) # Pairs that are no longer in conflict
-        lospairs_new = list(set(self.lospairs) - self.prevlospairs) # New lospairs
-        
+        """Here, we are logging the information for current conflicts as well as
+        whether these conflicts resulted in a LOS or not."""
+        confpairs_new = list(set(self.confpairs) - self.prevconfpairs)  # New confpairs
+        confpairs_out = list(
+            self.prevconfpairs - set(self.confpairs)
+        )  # Pairs that are no longer in conflict
+        lospairs_new = list(set(self.lospairs) - self.prevlospairs)  # New lospairs
+
         # First of all, add the new conflicts to the unique dict tracker
         for confpair in confpairs_new:
             # The dict is of the following format:
@@ -631,27 +900,27 @@ class JasonCD(ConflictDetection):
                 dictkey = confpair[0] + confpair[1]
             else:
                 dictkey = confpair[1] + confpair[0]
-                
+
             if dictkey in self.unique_conf_dict:
                 # Pair already in there
                 continue
             else:
                 self.unique_conf_dict[dictkey] = [self.unique_conf_id_counter, False]
-                self.counter2id[self.unique_conf_id_counter] = dictkey 
+                self.counter2id[self.unique_conf_id_counter] = dictkey
                 self.unique_conf_id_counter += 1
-                
+
                 self.conflictlog.log(
-                self.unique_conf_dict[dictkey][0],
-                confpair[0],
-                confpair[1],
-                bs.traf.lat[idx1],
-                bs.traf.lon[idx1],
-                bs.traf.alt[idx1],
-                bs.traf.lat[idx2],
-                bs.traf.lon[idx2],
-                bs.traf.alt[idx2]
-            )   
-            
+                    self.unique_conf_dict[dictkey][0],
+                    confpair[0],
+                    confpair[1],
+                    bs.traf.lat[idx1],
+                    bs.traf.lon[idx1],
+                    bs.traf.alt[idx1],
+                    bs.traf.lat[idx2],
+                    bs.traf.lon[idx2],
+                    bs.traf.alt[idx2],
+                )
+
         # Now check the new LOS
         done_pairs = []
         for lospair in lospairs_new:
@@ -662,22 +931,21 @@ class JasonCD(ConflictDetection):
                 dictkey = lospair[0] + lospair[1]
             else:
                 dictkey = lospair[1] + lospair[0]
-                
+
             if dictkey in done_pairs:
                 # Already done, continue
                 continue
-            
+
             done_pairs.append(dictkey)
-                
+
             # Set the bool as true
             if dictkey in self.unique_conf_dict:
                 self.unique_conf_dict[dictkey][1] = True
             else:
                 # This LOS was not detected, but it is usually because of weird geometry
-                #print(dictkey)
+                # print(dictkey)
                 continue
-                
-            
+
         # Now handle aircraft that are no longer in confpairs
         done_pairs = []
         for confpair in confpairs_out:
@@ -694,47 +962,55 @@ class JasonCD(ConflictDetection):
                     dictkey = confpair[1] + confpair[0]
                 else:
                     # Absolutely no clue, continue I guess
-                    #print('huh')
+                    # print('huh')
                     continue
-                
+
                 self.uniqueconfloslog.log(
-                self.unique_conf_dict[dictkey][0],
-                str(self.unique_conf_dict[dictkey][1])
+                    self.unique_conf_dict[dictkey][0],
+                    str(self.unique_conf_dict[dictkey][1]),
                 )
                 self.unique_conf_dict.pop(dictkey)
                 continue
-                    
-                
+
             idx1 = bs.traf.id.index(confpair[0])
             idx2 = bs.traf.id.index(confpair[1])
-            
+
             if idx1 < idx2:
                 dictkey = confpair[0] + confpair[1]
             else:
                 dictkey = confpair[1] + confpair[0]
-                
+
             if dictkey in done_pairs:
                 # Already done, continue
                 continue
-            
+
             done_pairs.append(dictkey)
-            
+
             # We want to keep this entry for a few extra seconds and see what happens
             # Get the conflict info and log it, then delete the entry
             self.uniqueconfloslog.log(
                 self.unique_conf_dict[dictkey][0],
-                str(self.unique_conf_dict[dictkey][1])
+                str(self.unique_conf_dict[dictkey][1]),
             )
             self.unique_conf_dict.pop(dictkey)
-        
+
         self.prevconfpairs = set(self.confpairs)
         self.prevlospairs = set(self.lospairs)
 
+    @command
+    def toggle_plot(self):
+        if self.plot_toggle:
+            self.plot_toggle = False
+            bs.scr.echo(f"plots are off")
+        else:
+            self.plot_toggle = True
+            bs.scr.echo(f"plots are on")
 
-def distaccel(v0,v1,axabs):
+
+def distaccel(v0, v1, axabs):
     """Calculate distance travelled during acceleration/deceleration
     v0 = start speed, v1 = endspeed, axabs = magnitude of accel/decel
     accel/decel is detemremind by sign of v1-v0
     axabs is acceleration/deceleration of which absolute value will be used
-    solve for x: x = vo*t + 1/2*a*t*t    v = v0 + a*t """
-    return 0.5*np.abs(v1*v1-v0*v0)/np.maximum(.001,np.abs(axabs))
+    solve for x: x = vo*t + 1/2*a*t*t    v = v0 + a*t"""
+    return 0.5 * np.abs(v1 * v1 - v0 * v0) / np.maximum(0.001, np.abs(axabs))
