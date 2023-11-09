@@ -188,6 +188,7 @@ class JasonCD(ConflictDetection):
             rpz = 50
             while time < 30:
                 if first_run == True:
+                    print(f"first run wp {current_wp}")
                     _, dist = kwikqdrdist(
                         bs.traf.lat[acidx],
                         bs.traf.lon[acidx],
@@ -197,7 +198,70 @@ class JasonCD(ConflictDetection):
                     dist *= nm
 
                     # Drone going towards a turn in the first run
-                    if acrte.wpflyturn[current_wp] == True:
+                    if (
+                        acrte.wpflyturn[current_wp] == True
+                        and acrte.wpflyturn[current_wp - 1] == True
+                    ):
+                        wpqdr, leg_dist = kwikqdrdist(
+                            acrte.wplat[current_wp - 1],
+                            acrte.wplon[current_wp - 1],
+                            acrte.wplat[current_wp],
+                            acrte.wplon[current_wp],
+                        )
+                        leg_dist *= nm
+                        nextwpqdr, _ = kwikqdrdist(
+                            acrte.wplat[current_wp],
+                            acrte.wplon[current_wp],
+                            acrte.wplat[current_wp + 1],
+                            acrte.wplon[current_wp + 1],
+                        )
+
+                        prevwpqdr, _ = kwikqdrdist(
+                            acrte.wplat[current_wp - 2],
+                            acrte.wplon[current_wp - 2],
+                            acrte.wplat[current_wp - 1],
+                            acrte.wplon[current_wp - 1],
+                        )
+
+                        secondturndist, turnrad, hdgchange = bs.traf.actwp.kwikcalcturn(
+                            5 * kts, 25, wpqdr, nextwpqdr
+                        )
+
+                        (
+                            initialturndist,
+                            turnrad,
+                            hdgchange,
+                        ) = bs.traf.actwp.kwikcalcturn(5 * kts, 25, wpqdr, nextwpqdr)
+
+                        turning_dist = abs(2 * np.pi * turnrad * hdgchange / 360)
+
+                        cruise_dist = leg_dist - initialturndist - secondturndist
+
+                        if dist > cruise_dist:
+                            # No turn time since turn is made for the second waypoint
+                            start_turn = True
+
+                            # Add it all up
+                            time_diff = dist / (5 * kts)
+                            time += time_diff
+
+                            current_wp += 1
+                            first_run = False
+
+                        else:
+                            # Add it all up
+                            start_turn = True
+
+                            time_diff = dist / (5 * kts)
+                            time += time_diff
+
+                            current_wp += 1
+                            first_run = False
+                            print(f"time from 1 {time_diff}")
+
+                            # bs.scr.echo(f"Initial turn Decell region time: {time}")
+
+                    elif acrte.wpflyturn[current_wp] == True:
                         wpqdr, _ = kwikqdrdist(
                             acrte.wplat[current_wp - 1],
                             acrte.wplon[current_wp - 1],
@@ -342,6 +406,18 @@ class JasonCD(ConflictDetection):
                 elif start_turn == True:
                     if acrte.wpflyturn[current_wp] == True:
                         # second part of initial turn
+                        wpqdr, _ = kwikqdrdist(
+                            acrte.wplat[current_wp - 2],
+                            acrte.wplon[current_wp - 2],
+                            acrte.wplat[current_wp-1],
+                            acrte.wplon[current_wp-1],
+                        )
+                                            
+                        turndist, turnrad, hdgchange = bs.traf.actwp.kwikcalcturn(
+                            5 * kts, 25, wpqdr, nextwpqdr
+                        )
+                        turning_dist = abs(2 * np.pi * turnrad * hdgchange / 360)
+                        
                         initial_turn_time = turning_dist / (5 * kts)
                         initial_turndist = turndist
 
@@ -376,6 +452,8 @@ class JasonCD(ConflictDetection):
                         # Total time
                         time_diff = initial_turn_time + cruise_time
                         time += time_diff
+
+                        print(f"total dist of this turn {dist}")
 
                         current_wp += 1
 
@@ -461,19 +539,96 @@ class JasonCD(ConflictDetection):
                         time += time_diff
                         current_wp += 1
 
+                print(f"time {time} for wp {current_wp -1}")
                 # --------------------------------------------------------------------------------------------------------------------------------------------------
                 # Position Calculations
                 if floor_div < time // measurement_freq:
                     i = 0
+                    # print(f"time: {time}")
                     value = int(time // measurement_freq) - floor_div
                     while i < value and floor_div < dtlookahead / measurement_freq:
                         floor_div += 1
                         overshoot_time = time - floor_div * measurement_freq
+                        # print(f"floor div {floor_div} and overshoot {overshoot_time}")
                         # print(f"overshoot_time: {overshoot_time}")
                         # print(f"floor_div: {floor_div}")
                         # print(i)
 
-                        if acrte.wpflyturn[current_wp - 1] == True:
+                        if (
+                            acrte.wpflyturn[current_wp - 1] == True
+                            and acrte.wpflyturn[current_wp - 2] == True
+                        ):
+                            wpqdr, dist = kwikqdrdist(
+                                acrte.wplat[current_wp - 2],
+                                acrte.wplon[current_wp - 2],
+                                acrte.wplat[current_wp - 1],
+                                acrte.wplon[current_wp - 1],
+                            )
+                            dist = dist * nm
+                            nextwpqdr, _ = kwikqdrdist(
+                                acrte.wplat[current_wp - 1],
+                                acrte.wplon[current_wp - 1],
+                                acrte.wplat[current_wp],
+                                acrte.wplon[current_wp],
+                            )
+
+                            prevwpqdr, _ = kwikqdrdist(
+                                acrte.wplat[current_wp - 3],
+                                acrte.wplon[current_wp - 3],
+                                acrte.wplat[current_wp - 2],
+                                acrte.wplon[current_wp - 2],
+                            )
+                            (
+                                initial_turndist,
+                                initial_turnrad,
+                                initial_hdgchange,
+                            ) = bs.traf.actwp.kwikcalcturn(
+                                5 * kts, 25, prevwpqdr, wpqdr
+                            )
+                            (
+                                second_turndist,
+                                turnrad,
+                                hdgchange,
+                            ) = bs.traf.actwp.kwikcalcturn(
+                                5 * kts, 25, wpqdr, nextwpqdr
+                            )
+
+                            initial_turning_dist = abs(
+                                2 * np.pi * initial_turnrad * initial_hdgchange / 360
+                            )
+
+                            initial_turn_time = initial_turning_dist / (5 * kts)
+
+                            cruise_dist = dist - initial_turndist - second_turndist
+                            cruise_time = cruise_dist / (5 * kts)
+
+                            # Ends in cruise
+                            if overshoot_time < cruise_time:
+                                overshoot_dist = overshoot_time * 5 * kts
+
+                                bearing, _ = kwikqdrdist(
+                                    acrte.wplat[current_wp - 1],
+                                    acrte.wplon[current_wp - 1],
+                                    acrte.wplat[current_wp - 2],
+                                    acrte.wplon[current_wp - 2],
+                                )
+                                final_lat, final_lon = kwikpos(
+                                    acrte.wplat[current_wp - 1],
+                                    acrte.wplon[current_wp - 1],
+                                    bearing,
+                                    overshoot_dist / nm,
+                                )
+
+                                if floor_div == 10:
+                                    print(f"overshoot dist {overshoot_dist}")
+                                    print(f"overshoot time {overshoot_time}")
+
+                            # Ends in cruise part before turn
+                            else:
+                                final_lat = acrte.wplat[current_wp - 2]
+                                final_lon = acrte.wplon[current_wp - 2]
+
+                        elif acrte.wpflyturn[current_wp - 1] == True:
                             wpqdr, dist = kwikqdrdist(
                                 acrte.wplat[current_wp - 2],
                                 acrte.wplon[current_wp - 2],
@@ -631,6 +786,7 @@ class JasonCD(ConflictDetection):
                                 overshoot_dist / nm,
                             )
 
+                        print(current_wp - 1)
                         # Data record
                         # print(f"{acid} , {final_lat}")
                         array_measurement.append(
@@ -643,9 +799,18 @@ class JasonCD(ConflictDetection):
                 except:
                     break
 
+        print("---------------------------------------------------------------")
         confpairs = []
         df = pd.DataFrame(array_measurement, columns=["acid", "part", "lat", "lon"])
-        # print(df)
+
+        if self.plot_toggle:
+            plt.scatter(
+                df.lat,
+                df.lon,
+                color="blue",
+                label=f"{df.acid}",
+            )
+            plt.show()
 
         try:
             parts = max(df["part"])
@@ -666,9 +831,9 @@ class JasonCD(ConflictDetection):
                 dist = np.asarray(dist) * nm + 1e9 * I
 
                 conflicts = np.column_stack(np.where(dist < rpz))
-                #print(conflicts)
+                # print(conflicts)
                 for pair in conflicts:
-                    #print(df["acid"].unique()[pair[0]])
+                    # print(df["acid"].unique()[pair[0]])
                     conflictpair = (
                         df[df["part"] == i].acid.unique()[pair[0]],
                         df[df["part"] == i].acid.unique()[pair[1]],
@@ -683,7 +848,6 @@ class JasonCD(ConflictDetection):
 
         # Conflict plot
         if self.plot_toggle:
-            print(dist)
             done_pairs = []
             for entry in confpairs:
                 if entry[0] and entry[1] in done_pairs:

@@ -10,6 +10,8 @@ from os.path import exists
 import tqdm
 import matplotlib.pyplot as plt
 
+nm  = 1852. 
+
 #Steal kiwkqdrdist function from Bluesky
 def kwikqdrdist(lata, lona, latb, lonb):
     """Gives quick and dirty qdr[deg] and dist [nm]
@@ -46,8 +48,9 @@ def generate_nodes(G):
             added_node_lat = G.nodes[node_entry]["y"]
             added_node_lon = G.nodes[node_entry]["x"]
             _, dist = kwikqdrdist(node_lat, node_lon, added_node_lat, added_node_lon)
+            dist = dist * nm
             
-            if dist <300:
+            if dist <5000:
                 node_too_close = True
                 break
 

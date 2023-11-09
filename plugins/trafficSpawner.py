@@ -1,5 +1,5 @@
 import bluesky as bs
-from bluesky import stack 
+from bluesky import stack
 from bluesky.traffic import Route
 from bluesky.core import Entity, timed_function
 from bluesky.stack import command
@@ -16,35 +16,31 @@ import pickle
 import os
 import numpy as np
 
+
 def init_plugin():
     # Configuration parameters
-    config = {
-        'plugin_name': 'TRAFFICSPAWNER',
-        'plugin_type': 'sim',
-        'reset': reset
-    }
+    config = {"plugin_name": "TRAFFICSPAWNER", "plugin_type": "sim", "reset": reset}
     # Put TrafficSpawner in bs.traf
     bs.traf.TrafficSpawner = trafficSpawner()
-    bs.stack.stack(f'SCHEDULE 00:00:00 PAN 40.776676,-73.971321')
-    bs.stack.stack(f'SCHEDULE 00:00:00 ZOOM 5')
+    bs.stack.stack(f"SCHEDULE 00:00:00 PAN 40.776676,-73.971321")
+    bs.stack.stack(f"SCHEDULE 00:00:00 ZOOM 5")
     print("hi init")
     return config
+
 
 def reset():
     bs.traf.TrafficSpawner.reset()
 
 
-
 class trafficSpawner(Entity):
     def __init__(self):
         super().__init__()
-        self.graph , self.nodes, self.edges = self.loadCity()
+        self.graph, self.nodes, self.edges = self.loadCity()
         self.target_ntraf = 20
         self.traf_id = 1
         self.traf_spd = 10
         self.traf_alt = 100 * ft
         random.seed(1)
-
 
         # Logging related stuff
         self.prevconfpairs = set()
@@ -53,10 +49,7 @@ class trafficSpawner(Entity):
         self.deleted_aircraft = 0
         self.losmindist = dict()
 
-        
-
         with self.settrafarrays():
-
             self.route_edges = []
             # Metrics
             self.distance2D = np.array([])
@@ -66,93 +59,129 @@ class trafficSpawner(Entity):
 
         return
 
-
-
     def loadCity(self):
-        graph = ox.load_graphml(filepath=r"C:\Users\Jason\Documents\Thesis\Network data\G_final.graphml")
+        graph = ox.load_graphml(
+            filepath=r"C:\Users\Jason\Documents\Thesis\Network data\G_final.graphml"
+        )
         nodes, edges = ox.graph_to_gdfs(graph)
         return graph, nodes, edges
-    
+
     def loadRoutes(self):
-        routes = os.listdir(f'C:/Coding/bluesky/bluesky/plugins/graph_genetic_algorithm/pickles')
+        routes = os.listdir(
+            f"C:/Coding/bluesky/bluesky/plugins/graph_genetic_algorithm/pickles"
+        )
         return routes
-    
+
     def create(self, n=1):
         super().create(n)
         # Store creation time of new aircraft
-        self.route_edges[-n:] = [0]*n # Default edge
-        self.distance2D[-n:] = [0]*n
-        self.distance3D[-n:] = [0]*n
-        self.distancealt[-n:] = [0]*n
-        self.create_time[-n:] = [0]*n
-        
+        self.route_edges[-n:] = [0] * n  # Default edge
+        self.distance2D[-n:] = [0] * n
+        self.distance3D[-n:] = [0] * n
+        self.distancealt[-n:] = [0] * n
+        self.create_time[-n:] = [0] * n
 
-    @timed_function(dt = 1)
+    @timed_function(dt=1)
     def spawn(self):
-        routes = os.listdir(f'C:/Coding/bluesky_fork2/bluesky/plugins/graph_genetic_algorithm/pickles')
-        #random.seed(1)
+        routes = os.listdir(
+            f"C:/Coding/bluesky_fork2/bluesky/plugins/graph_genetic_algorithm/pickles"
+        )
+        # random.seed(1)
         while bs.traf.ntraf < self.target_ntraf:
             count = 0
-            dangerclose= False
-            route_entry = random.randint(0,len(routes)-1)
+            dangerclose = False
+            route_entry = random.randint(0, len(routes) - 1)
             filename = routes[route_entry]
-            route = pd.read_pickle(f'C:/Coding/bluesky_fork2/bluesky/plugins/graph_genetic_algorithm/pickles/{filename}')
+            route = pd.read_pickle(
+                f"C:/Coding/bluesky_fork2/bluesky/plugins/graph_genetic_algorithm/pickles/{filename}"
+            )
             lats, lons = zip(*route)
-            dist = kwikdist_matrix(np.array([lats[0]]),np.array([lons[0]]), bs.traf.lat, bs.traf.lon)
-            dist = dist *nm
-            
-            print(dist)
+            dist = kwikdist_matrix(
+                np.array([lats[0]]), np.array([lons[0]]), bs.traf.lat, bs.traf.lon
+            )
+            dist = dist * nm
+
             if np.any(dist < 500):
                 print("TOO CLOSE")
                 bs.scr.echo("TOO CLOSE")
                 continue
-            
+
             acid = f"DR{self.traf_id}"
             self.traf_id += 1
             actype = "M600"
-            achdg , _ = kwikqdrdist(lats[0], lons[0], lats[1], lons[1])
-            bs.traf.cre(acid, actype, lats[0], lons[0], achdg, self.traf_alt, 15 *kts)
+            achdg, _ = kwikqdrdist(lats[0], lons[0], lats[1], lons[1])
+            bs.traf.cre(acid, actype, lats[0], lons[0], achdg, self.traf_alt, 15 * kts)
             acrte = Route._routes.get(acid)
             acidx = bs.traf.id.index(acid)
             bs.scr.echo(f"spawning")
-            lastwp=[]
+            lastwp = []
             for i in range(len(route)):
-                if i == len(route)-1:
+                if i == len(route) - 1:
                     acrte.swflyby = True
                     acrte.swflyturn = False
                     wptype = Route.wplatlon
-                    acrte.addwpt_simple(acidx,f"WP{count}", wptype, route[i][0], route[i][1], self.traf_alt, 15*kts)
+                    acrte.addwpt_simple(
+                        acidx,
+                        f"WP{count}",
+                        wptype,
+                        route[i][0],
+                        route[i][1],
+                        self.traf_alt,
+                        15 * kts,
+                    )
                 elif i == 0:
                     future_angle = achdg
                     acrte.swflyby = True
                     acrte.swflyturn = False
                     wptype = Route.wplatlon
-                    acrte.addwpt_simple(acidx,f"WP{count}", wptype, route[i][0], route[i][1], self.traf_alt, 15*kts)
-                else: 
-                    future_angle, _ = kwikqdrdist(route[i][0], route[i][1], route[i+1][0], route[i+1][1])
+                    acrte.addwpt_simple(
+                        acidx,
+                        f"WP{count}",
+                        wptype,
+                        route[i][0],
+                        route[i][1],
+                        self.traf_alt,
+                        15 * kts,
+                    )
+                else:
+                    future_angle, _ = kwikqdrdist(
+                        route[i][0], route[i][1], route[i + 1][0], route[i + 1][1]
+                    )
                     if abs(current_angle - future_angle) > 50:
                         acrte.swflyby = False
                         acrte.swflyturn = True
                         acrte.turnspd = 5 * kts
                         wptype = Route.wplatlon
-                        acrte.addwpt_simple(acidx,f"WP{count}", wptype, route[i][0], route[i][1], self.traf_alt, 5*kts)
+                        acrte.addwpt_simple(
+                            acidx,
+                            f"WP{count}",
+                            wptype,
+                            route[i][0],
+                            route[i][1],
+                            self.traf_alt,
+                            5 * kts,
+                        )
                     else:
                         acrte.swflyby = True
                         acrte.swflyturn = False
                         wptype = Route.wplatlon
-                        acrte.addwpt_simple(acidx,f"WP{count}", wptype, route[i][0], route[i][1], self.traf_alt, 15*kts)
+                        acrte.addwpt_simple(
+                            acidx,
+                            f"WP{count}",
+                            wptype,
+                            route[i][0],
+                            route[i][1],
+                            self.traf_alt,
+                            15 * kts,
+                        )
                 current_angle = future_angle
-                count +=1
+                count += 1
             acrte.calcfp()
             stack.stack(f"DIRECT {acid} WP0")
-            stack.stack(f'LNAV {acid} ON')
-            stack.stack(f'VNAV {acid} ON')
+            stack.stack(f"LNAV {acid} ON")
+            stack.stack(f"VNAV {acid} ON")
 
-        
-                
-
-
-    #@timed_function(dt = 10)
+    # @timed_function(dt = 10)
     def printer(self):
         try:
             bs.traf.id
@@ -171,57 +200,59 @@ class trafficSpawner(Entity):
 
         stack.stack("HOLD")
 
-    
-
-    
-
-    @timed_function(dt = 0.5)
+    @timed_function(dt=0.5)
     def delete_aircraft(self):
         self.update_logging()
         # Delete aircraft that have LNAV off and have gone past the last waypoint.
         lnav_on = bs.traf.swlnav
-        still_going_to_dest = np.logical_and(abs(degto180(bs.traf.trk - bs.traf.ap.qdr2wp)) < 10.0, 
-                                       bs.traf.ap.dist2wp > 5)
-        delete_array = np.logical_and.reduce((np.logical_not(lnav_on), 
-                                         bs.traf.actwp.swlastwp,
-                                         np.logical_not(still_going_to_dest)))
-        
+        still_going_to_dest = np.logical_and(
+            abs(degto180(bs.traf.trk - bs.traf.ap.qdr2wp)) < 10.0,
+            bs.traf.ap.dist2wp > 5,
+        )
+        delete_array = np.logical_and.reduce(
+            (
+                np.logical_not(lnav_on),
+                bs.traf.actwp.swlastwp,
+                np.logical_not(still_going_to_dest),
+            )
+        )
+
         if np.any(delete_array):
             # Get the ACIDs of the aircraft to delete
             acids_to_delete = np.array(bs.traf.id)[delete_array]
             for acid in acids_to_delete:
                 idx = bs.traf.id2idx(acid)
                 bs.traf.CDLogger.flst.log(
-                acid,
-                self.create_time[idx],
-                bs.sim.simt - self.create_time[idx],
-                (self.distance2D[idx]),
-                (self.distance3D[idx]),
-                (self.distancealt[idx]),
-                bs.traf.lat[idx],
-                bs.traf.lon[idx],
-                bs.traf.alt[idx]/ft,
-                bs.traf.tas[idx]/kts,
-                bs.traf.vs[idx]/fpm,
-                bs.traf.hdg[idx],
-                bs.traf.cr.active[idx],
-                bs.traf.aporasas.alt[idx]/ft,
-                bs.traf.aporasas.tas[idx]/kts,
-                bs.traf.aporasas.vs[idx]/fpm,
-                bs.traf.aporasas.hdg[idx])
+                    acid,
+                    self.create_time[idx],
+                    bs.sim.simt - self.create_time[idx],
+                    (self.distance2D[idx]),
+                    (self.distance3D[idx]),
+                    (self.distancealt[idx]),
+                    bs.traf.lat[idx],
+                    bs.traf.lon[idx],
+                    bs.traf.alt[idx] / ft,
+                    bs.traf.tas[idx] / kts,
+                    bs.traf.vs[idx] / fpm,
+                    bs.traf.hdg[idx],
+                    bs.traf.cr.active[idx],
+                    bs.traf.aporasas.alt[idx] / ft,
+                    bs.traf.aporasas.tas[idx] / kts,
+                    bs.traf.aporasas.vs[idx] / fpm,
+                    bs.traf.aporasas.hdg[idx],
+                )
                 bs.traf.delete(idx)
-                #stack.stack(f'DEL {acid}')
+                # stack.stack(f'DEL {acid}')
 
-    def update_logging(self):        
+    def update_logging(self):
         # Increment the distance metrics
         resultantspd = np.sqrt(bs.traf.gs * bs.traf.gs + bs.traf.vs * bs.traf.vs)
         self.distance2D += bs.sim.simdt * abs(bs.traf.gs)
         self.distance3D += bs.sim.simdt * resultantspd
         self.distancealt += bs.sim.simdt * abs(bs.traf.vs)
-        
+
         # Now let's do the CONF and LOS logs
         confpairs_new = list(set(bs.traf.cd.confpairs) - self.prevconfpairs)
-        print(bs.traf.cd.confpairs)
         if confpairs_new:
             done_pairs = []
             for pair in set(confpairs_new):
@@ -230,21 +261,28 @@ class trafficSpawner(Entity):
                     # Get the two aircraft
                     idx1 = bs.traf.id.index(pair[0])
                     idx2 = bs.traf.id.index(pair[1])
-                    done_pairs.append((idx1,idx2))
-                    if (idx2,idx1) in done_pairs:
+                    done_pairs.append((idx1, idx2))
+                    if (idx2, idx1) in done_pairs:
                         continue
-                        
-                    bs.traf.CDLogger.conflog.log(pair[0], pair[1],
-                                    bs.traf.lat[idx1], bs.traf.lon[idx1],bs.traf.alt[idx1],
-                                    bs.traf.lat[idx2], bs.traf.lon[idx2],bs.traf.alt[idx2])
-                
+
+                    bs.traf.CDLogger.conflog.log(
+                        pair[0],
+                        pair[1],
+                        bs.traf.lat[idx1],
+                        bs.traf.lon[idx1],
+                        bs.traf.alt[idx1],
+                        bs.traf.lat[idx2],
+                        bs.traf.lon[idx2],
+                        bs.traf.alt[idx2],
+                    )
+
         self.prevconfpairs = set(bs.traf.cd.confpairs)
-        
+
         # Losses of separation as well
         # We want to track the LOS, and log the minimum distance and altitude between these two aircraft.
         # This gives us the lospairs that were here previously but aren't anymore
         lospairs_out = list(self.prevlospairs - set(bs.traf.cd.lospairs))
-        
+
         # Attempt to calculate current distance for all current lospairs, and store it in the dictionary
         # if entry doesn't exist yet or if calculated distance is smaller.
         for pair in bs.traf.cd.lospairs:
@@ -253,31 +291,61 @@ class trafficSpawner(Entity):
                 idx1 = bs.traf.id.index(pair[0])
                 idx2 = bs.traf.id.index(pair[1])
                 # Calculate current distance between them [m]
-                losdistance = kwikdist(bs.traf.lat[idx1], bs.traf.lon[idx1], bs.traf.lat[idx2], bs.traf.lon[idx2])*nm
+                losdistance = (
+                    kwikdist(
+                        bs.traf.lat[idx1],
+                        bs.traf.lon[idx1],
+                        bs.traf.lat[idx2],
+                        bs.traf.lon[idx2],
+                    )
+                    * nm
+                )
                 # To avoid repeats, the dictionary entry is DxDy, where x<y. So D32 and D564 would be D32D564
-                dictkey = pair[0]+pair[1] if int(pair[0][2:]) < int(pair[1][2:]) else pair[1]+pair[0]
+                dictkey = (
+                    pair[0] + pair[1]
+                    if int(pair[0][2:]) < int(pair[1][2:])
+                    else pair[1] + pair[0]
+                )
                 if dictkey not in self.losmindist:
                     # Set the entry
-                    self.losmindist[dictkey] = [losdistance, 
-                                                bs.traf.lat[idx1], bs.traf.lon[idx1], bs.traf.alt[idx1], 
-                                                bs.traf.lat[idx2], bs.traf.lon[idx2], bs.traf.alt[idx2],
-                                                bs.sim.simt, bs.sim.simt]
+                    self.losmindist[dictkey] = [
+                        losdistance,
+                        bs.traf.lat[idx1],
+                        bs.traf.lon[idx1],
+                        bs.traf.alt[idx1],
+                        bs.traf.lat[idx2],
+                        bs.traf.lon[idx2],
+                        bs.traf.alt[idx2],
+                        bs.sim.simt,
+                        bs.sim.simt,
+                    ]
                     # This guy here                             ^ is the LOS start time
                 else:
                     # Entry exists, check if calculated is smaller
                     if self.losmindist[dictkey][0] > losdistance:
                         # It's smaller. Make sure to keep the LOS start time
-                        self.losmindist[dictkey] = [losdistance, 
-                                                bs.traf.lat[idx1], bs.traf.lon[idx1], bs.traf.alt[idx1], 
-                                                bs.traf.lat[idx2], bs.traf.lon[idx2], bs.traf.alt[idx2],
-                                                bs.sim.simt, self.losmindist[dictkey][8]]
-        
+                        self.losmindist[dictkey] = [
+                            losdistance,
+                            bs.traf.lat[idx1],
+                            bs.traf.lon[idx1],
+                            bs.traf.alt[idx1],
+                            bs.traf.lat[idx2],
+                            bs.traf.lon[idx2],
+                            bs.traf.alt[idx2],
+                            bs.sim.simt,
+                            self.losmindist[dictkey][8],
+                        ]
+
         # Log data if there are aircraft that are no longer in LOS
         if lospairs_out:
             done_pairs = []
             for pair in set(lospairs_out):
                 # Get their dictkey
-                dictkey = pair[0]+pair[1] if int(pair[0][2:]) < int(pair[1][2:]) else pair[1]+pair[0]
+                dictkey = (
+                    pair[0] + pair[1]
+                    if int(pair[0][2:]) < int(pair[1][2:])
+                    else pair[1] + pair[0]
+                )
                 # Is this pair in the dictionary?
                 if dictkey not in self.losmindist:
                     # Pair was already logged, continue
@@ -285,18 +353,25 @@ class trafficSpawner(Entity):
                 losdata = self.losmindist[dictkey]
                 # Remove this aircraft pair from losmindist
                 self.losmindist.pop(dictkey)
-                #Log the LOS
-                bs.traf.CDLogger.loslog.log(losdata[8], losdata[7], pair[0], pair[1],
-                                losdata[1], losdata[2],losdata[3],
-                                losdata[4], losdata[5],losdata[6],
-                                losdata[0])
-                
-        
+                # Log the LOS
+                bs.traf.CDLogger.loslog.log(
+                    losdata[8],
+                    losdata[7],
+                    pair[0],
+                    pair[1],
+                    losdata[1],
+                    losdata[2],
+                    losdata[3],
+                    losdata[4],
+                    losdata[5],
+                    losdata[6],
+                    losdata[0],
+                )
+
         self.prevlospairs = set(bs.traf.cd.lospairs)
 
-
     def reset(self):
-        self.graph , self.nodes, self.edges = self.loadCity()
+        self.graph, self.nodes, self.edges = self.loadCity()
         self.target_ntraf = 1
         self.traf_id = 1
         self.traf_spd = 20
@@ -314,10 +389,7 @@ class trafficSpawner(Entity):
 
         self.losmindist = dict()
 
-        
-
         with self.settrafarrays():
-
             self.route_edges = []
 
             # Metrics
@@ -332,11 +404,11 @@ class trafficSpawner(Entity):
 
         return
 
-    
-def distaccel(v0,v1,axabs):
+
+def distaccel(v0, v1, axabs):
     """Calculate distance travelled during acceleration/deceleration
     v0 = start speed, v1 = endspeed, axabs = magnitude of accel/decel
     accel/decel is detemremind by sign of v1-v0
     axabs is acceleration/deceleration of which absolute value will be used
-    solve for x: x = vo*t + 1/2*a*t*t    v = v0 + a*t """
-    return 0.5*np.abs(v1*v1-v0*v0)/np.maximum(.001,np.abs(axabs))
+    solve for x: x = vo*t + 1/2*a*t*t    v = v0 + a*t"""
+    return 0.5 * np.abs(v1 * v1 - v0 * v0) / np.maximum(0.001, np.abs(axabs))

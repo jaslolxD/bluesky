@@ -55,6 +55,12 @@ def kwikpos(latd1, lond1, qdr, dist):
 # print(f" Lat: {lat2}, Lon: {lon2}")
 # print(f" Lat: {lat3}, Lon: {lon3}")
 
+# THIS PICKLE IS FUCKED
+# 1061531695-42438963.pkl
+# Bug happens at 20:31 into simulation
+# Around wp 408-409 ish
+# Going to 410
+
 array_measurement = [
     ["DR1", 1, 40.80586699999998, -73.9528064],
     ["DR1", 2, 40.80559163329035, -73.95215093989852],
