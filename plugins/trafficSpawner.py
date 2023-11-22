@@ -92,6 +92,7 @@ class trafficSpawner(Entity):
             dangerclose = False
             route_entry = random.randint(0, len(routes) - 1)
             filename = routes[route_entry]
+            filename = "3582-2692.pkl"
             route = pd.read_pickle(
                 f"C:/Coding/bluesky_fork2/bluesky/plugins/graph_genetic_algorithm/pickles/{filename}"
             )
@@ -107,6 +108,8 @@ class trafficSpawner(Entity):
                 continue
 
             acid = f"DR{self.traf_id}"
+            if acid == "DR24":
+                print(filename)
             self.traf_id += 1
             actype = "M600"
             achdg, _ = kwikqdrdist(lats[0], lons[0], lats[1], lons[1])

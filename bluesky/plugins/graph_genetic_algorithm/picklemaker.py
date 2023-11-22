@@ -30,7 +30,7 @@ def kwikqdrdist(lata, lona, latb, lonb):
     return qdr, dist
 
 random.seed(0)
-G = ox.load_graphml(filepath=r"C:\Users\Jason\Documents\Thesis\Network data\G_final.graphml")
+G = ox.load_graphml(filepath=r"C:\Users\Jason\Documents\Thesis\Network data\G_final2.graphml")
 nodes, edges = ox.graph_to_gdfs(G)
 
 
@@ -62,13 +62,11 @@ def generate_nodes(G):
 
 def generate_route_pickle(origin, destination):
     _ , dist = kwikqdrdist(G.nodes[origin]["y"], G.nodes[origin]["x"], G.nodes[destination]["y"], G.nodes[destination]["x"])
-    print(origin)
-    print(destination)
-    print(dist)
+    dist *= nm
     if exists(f'C:/Coding/bluesky/bluesky/plugins/graph_genetic_algorithm/pickles/{origin}-{destination}.pkl'):
         return
         
-    if dist > 1000:
+    if dist > 5000:
         try:
             route = nx.shortest_path(G, origin, destination)
         except:
@@ -106,7 +104,7 @@ def generate_route_pickle(origin, destination):
     else: 
         return
     
-    with open(f'C:/Coding/bluesky/bluesky/plugins/graph_genetic_algorithm/pickles/{origin}-{destination}.pkl' , 'wb') as f:
+    with open(f'C:/Coding/bluesky_fork2/bluesky/plugins/graph_genetic_algorithm/pickles/{origin}-{destination}.pkl' , 'wb') as f:
         pickle.dump(route_pickle, f)
     return route_pickle
 

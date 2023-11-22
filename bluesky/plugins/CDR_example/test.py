@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.express as px
+import osmnx as ox
 
 nm = 1852.0
 
@@ -25,6 +26,21 @@ def kwikqdrdist_matrix(lata, lona, latb, lonb):
 
     return qdr, dist
 
+def kwikqdrdist(lata, lona, latb, lonb):
+    """Gives quick and dirty qdr[deg] and dist [nm]
+       from lat/lon. (note: does not work well close to poles)"""
+
+    re      = 6371000.  # radius earth [m]
+    dlat    = np.radians(latb - lata)
+    dlon    = np.radians(((lonb - lona)+180)%360-180)
+    cavelat = np.cos(np.radians(lata + latb) * 0.5)
+
+    dangle  = np.sqrt(dlat * dlat + dlon * dlon * cavelat * cavelat)
+    dist    = re * dangle / nm
+
+    qdr     = np.degrees(np.arctan2(dlon * cavelat, dlat)) % 360.
+
+    return qdr, dist
 
 def kwikpos(latd1, lond1, qdr, dist):
     """Fast, but quick and dirty, position calculation from vectors of reference position,
@@ -46,20 +62,21 @@ def kwikpos(latd1, lond1, qdr, dist):
 
     return latd2, lond2
 
+def finalVaccel(dist, v0, axabs):
+    return np.sqrt(2*axabs*dist + v0**2)
 
-# lat1 = 52.3836
-# lon1= 4.0967
+#print(finalVaccel(10,5,5))
+#lat1 = 52.3836
+#lon1= 4.0967
 #
-# lat2 , lon2 = kwikpos(lat1, lon1, 0, 0.25)
-# lat3, lon3 = kwikpos(lat1, lon1, 90, 0.25)
-# print(f" Lat: {lat2}, Lon: {lon2}")
-# print(f" Lat: {lat3}, Lon: {lon3}")
+#lat2 , lon2 = kwikpos(lat1, lon1, 0, 0.25)
+#lat3, lon3 = kwikpos(lat1, lon1, 90, 0.25)
+#lat4, lon4 = kwikpos(lat1, lon1, 270, 0.25)
+##print(f" Lat: {lat2}, Lon: {lon2}")
+#print(f" Lat: {lat4}, Lon: {lon4}")
 
 # THIS PICKLE IS FUCKED
-# 1061531695-42438963.pkl
-# Bug happens at 20:31 into simulation
-# Around wp 408-409 ish
-# Going to 410
+#3582-2692.pkl
 
 array_measurement = [
     ["DR1", 1, 40.80586699999998, -73.9528064],
@@ -70,6 +87,7 @@ array_measurement = [
     ["DR2", 3, 40.71038585131503, -73.99412271512116],
 ]
 confpairs = []
+confinfo= []
 df = pd.DataFrame(array_measurement, columns=["acid", "part", "lat", "lon"])
 I = I = np.eye(len(df["acid"].unique()))
 parts = max(df["part"])
@@ -85,35 +103,47 @@ for i in range(1, parts + 1):
     qdr = np.asarray(qdr)
     dist = np.asarray(dist) * nm + 1e9 * I
     conflicts = np.column_stack(np.where(dist < 100000))
-    print(conflicts)
-    print(df["acid"].unique())
+#    print(conflicts)
+#    print(qdr)
     for pair in conflicts:
         # print(pair)
         conflictpair = df["acid"].unique()[pair[0]], df["acid"].unique()[pair[1]]
         if conflictpair not in confpairs:
             confpairs.append(conflictpair)
+            confinfo.append([conflictpair, i])
 
 
+
+#print(confinfo)
+#print(df)
+for entry in confinfo:
+    qdr1, _ = kwikqdrdist( df[(df["acid"] == entry[0][0]) & (df["part"] == entry[1] -1)].lat, df[(df["acid"] == entry[0][0]) & (df["part"] == entry[1] -1)].lon, 
+                                  df[(df["acid"] == entry[0][0]) & (df["part"] == entry[1])].lat, df[(df["acid"] == entry[0][0]) & (df["part"] == entry[1])].lon 
+                                  )
+    print(df[(df["acid"] == entry[0][0]) & (df["part"] == entry[1])])
+    #print(df.query(f"part == {entry[1]} & acid == {entry[0][0]}"))
+ 
 done_pairs = []
-for entry in confpairs:
-    if entry[0] and entry[1] in done_pairs:
-        continue
-    done_pairs.append(entry[0])
-    done_pairs.append(entry[1])
-    # print(done_pairs)
-    plt.scatter(
-        df[df["acid"] == entry[0]].lat, df[df["acid"] == entry[0]].lon, color="blue"
-    )
-    plt.scatter(
-        df[df["acid"] == entry[1]].lat, df[df["acid"] == entry[1]].lon, color="red"
-    )
-    for coords in zip(
-        df[df["acid"] == entry[1]].lat,
-        df[df["acid"] == entry[1]].lon,
-        df[df["acid"] == entry[0]].lat,
-        df[df["acid"] == entry[0]].lon,
-    ):
-        pass
+#for entry in confpairs:
+#    print(entry[0])
+#    if entry[0] and entry[1] in done_pairs:
+#        continue
+#    done_pairs.append(entry[0])
+#    done_pairs.append(entry[1])
+#    # print(done_pairs)
+#    plt.scatter(
+#        df[df["acid"] == entry[0]].lat, df[df["acid"] == entry[0]].lon, color="blue"
+#    )
+#    plt.scatter(
+#        df[df["acid"] == entry[1]].lat, df[df["acid"] == entry[1]].lon, color="red"
+#    )
+#    for coords in zip(
+#        df[df["acid"] == entry[1]].lat,
+#        df[df["acid"] == entry[1]].lon,
+#        df[df["acid"] == entry[0]].lat,
+#        df[df["acid"] == entry[0]].lon,
+#    ):
+#        pass
         # print(coords[:2])
         # print(coords[2:4])
 

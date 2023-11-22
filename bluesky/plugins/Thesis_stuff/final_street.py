@@ -36,8 +36,6 @@ gdf_nodes["x"] = gdf_nodes["geometry"].x
 gdf_nodes["y"] = gdf_nodes["geometry"].y
 
 
-print(gdf_nodes.index)
-
 G = ox.graph_from_gdfs(gdf_nodes, gdf_edges)
 
 #ox.plot_graph(G)

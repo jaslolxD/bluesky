@@ -69,6 +69,8 @@ class JasonCD(ConflictDetection):
         self.measurement_freq = 3
         self.rpz_def = 50
         self.plot_toggle = False
+        self.df = []
+        self.confinfo = []
 
         # Logging
         self.conflictlog = datalog.crelog("CDR_CONFLICTLOG", None, confheader)
@@ -112,7 +114,7 @@ class JasonCD(ConflictDetection):
 
     def update(self, ownship, intruder):
         """Perform an update step of the Conflict Detection implementation."""
-        self.confpairs, self.inconf, self.lospairs = self.detect(
+        self.confpairs, self.inconf, self.lospairs, self.df, self.confinfo = self.detect(
             ownship, intruder, self.rpz_def, self.hpz, self.dtlookahead_def
         )
 
@@ -144,11 +146,11 @@ class JasonCD(ConflictDetection):
         # Do the own detection
         # confpairs, inconf, self.predicted_waypoints = self.jason_detect(ownship, intruder, self.rpz_def, self.hpz, self.dtlookahead_def)
 
-        array, confpairs, inconf, lospairs = self.traj_detect(
+        confpairs, inconf, lospairs, df, confinfo = self.traj_detect(
             ownship, intruder, self.rpz_def, self.dtlookahead_def, self.measurement_freq
         )
 
-        return confpairs, inconf, lospairs
+        return confpairs, inconf, lospairs, df, confinfo
 
     def jason_detect(self, ownship, intruder, rpz, hpz, dtlookahead):
         # All aircraft are within 300m of each other are in conflict!! (definitely change this)
@@ -177,18 +179,22 @@ class JasonCD(ConflictDetection):
             acids = bs.traf.id
 
         array_measurement = []
+        acid_conflicts = []
+        for entry in bs.traf.cd.confpairs:
+            acid_conflicts.append(entry[0])
+            
         for acid in acids:
             time = 0
             acidx = bs.traf.id2idx(acid)
             acrte = Route._routes.get(acid)
             current_wp = acrte.iactwp
             first_run = True
+            second_run = False
             start_turn = False
             floor_div = 0
             rpz = 50
             while time < 30:
                 if first_run == True:
-                    print(f"first run wp {current_wp}")
                     _, dist = kwikqdrdist(
                         bs.traf.lat[acidx],
                         bs.traf.lon[acidx],
@@ -196,9 +202,316 @@ class JasonCD(ConflictDetection):
                         acrte.wplon[current_wp],
                     )
                     dist *= nm
+                    if acid in acid_conflicts:
+                        speed = bs.traf.tas[acidx]
+                        
+                        # Drone going towards a turn in the first run and away from a turn
+                        if (
+                            acrte.wpflyturn[current_wp] == True
+                            and acrte.wpflyturn[current_wp - 1] == True
+                        ):
+                            wpqdr, leg_dist = kwikqdrdist(
+                                acrte.wplat[current_wp - 1],
+                                acrte.wplon[current_wp - 1],
+                                acrte.wplat[current_wp],
+                                acrte.wplon[current_wp],
+                            )
+                            leg_dist *= nm
+                            nextwpqdr, _ = kwikqdrdist(
+                                acrte.wplat[current_wp],
+                                acrte.wplon[current_wp],
+                                acrte.wplat[current_wp + 1],
+                                acrte.wplon[current_wp + 1],
+                            )
+
+                            prevwpqdr, _ = kwikqdrdist(
+                                acrte.wplat[current_wp - 2],
+                                acrte.wplon[current_wp - 2],
+                                acrte.wplat[current_wp - 1],
+                                acrte.wplon[current_wp - 1],
+                            )
+
+                            secondturndist, turnrad, hdgchange = bs.traf.actwp.kwikcalcturn(
+                                5 * kts, 25, wpqdr, nextwpqdr
+                            )
+
+                            (
+                                initialturndist,
+                                turnrad,
+                                hdgchange,
+                            ) = bs.traf.actwp.kwikcalcturn(5 * kts, 25, wpqdr, nextwpqdr)
+
+                            turning_dist = abs(2 * np.pi * turnrad * hdgchange / 360)
+
+                            cruise_dist = leg_dist - initialturndist - secondturndist
+
+                            if dist > cruise_dist:
+                                # No turn time since turn is made for the second waypoint
+                                start_turn = True
+                                
+                                if speed < 5*kts:
+                                    accel_dist = distaccel(speed, 5 * kts, bs.traf.perf.axmax[acidx])
+                                    accel_time = (
+                                    abs(speed - 5 * kts) / bs.traf.perf.axmax[acidx]
+                                    )
+
+                                    # Add it all up
+                                    time_diff = (dist - accel_dist) / (5 * kts) + accel_time
+                                    time += time_diff
+                                    
+                                else:
+                                    time_diff = dist / (5 * kts)
+                                    time += time_diff
+
+                                current_wp += 1
+                                first_run = False
+
+                            else:
+                                # Add it all up
+                                start_turn = True
+
+                                if speed < 5*kts:
+                                    accel_dist = distaccel(speed, 5 * kts, bs.traf.perf.axmax[acidx])
+                                    accel_time = (
+                                    abs(speed - 5 * kts) / bs.traf.perf.axmax[acidx]
+                                    )
+                                    
+                                    if accel_dist > dist- secondturndist:
+                                        final_velocity = finalVaccel(dist- secondturndist, speed, bs.traf.perf.axmax[acidx])
+                                        accel_time = abs(final_velocity - speed)/ bs.traf.perf.axmax[acidx]
+                                        second_run = True
+                                        time_diff = accel_time
+                                        time += time_diff
+                                    else:
+                                        # Add it all up
+                                        time_diff = (dist - accel_dist- secondturndist) / (5 * kts) + accel_time
+                                        time += time_diff
+                                    
+                                else:
+                                    time_diff = (dist - secondturndist) / (5 * kts)
+                                    time += time_diff
+
+                                current_wp += 1
+                                first_run = False
+
+                                # bs.scr.echo(f"Initial turn Decell region time: {time}")
+
+                        elif acrte.wpflyturn[current_wp] == True:
+                            wpqdr, _ = kwikqdrdist(
+                                acrte.wplat[current_wp - 1],
+                                acrte.wplon[current_wp - 1],
+                                acrte.wplat[current_wp],
+                                acrte.wplon[current_wp],
+                            )
+                            nextwpqdr, _ = kwikqdrdist(
+                                acrte.wplat[current_wp],
+                                acrte.wplon[current_wp],
+                                acrte.wplat[current_wp + 1],
+                                acrte.wplon[current_wp + 1],
+                            )
+                            turndist, turnrad, hdgchange = bs.traf.actwp.kwikcalcturn(
+                                5 * kts, 25, wpqdr, nextwpqdr
+                            )
+                            accel_dist = distaccel(
+                                15 * kts, 5 * kts, bs.traf.perf.axmax[acidx]
+                            )
+                            turning_dist = abs(2 * np.pi * turnrad * hdgchange / 360)
+
+                            if dist > turndist + accel_dist:
+                                if speed < 15*kts:
+                                    accel_conf_dist = distaccel(speed, 15*kts,bs.traf.perf.axmax[acidx])
+                                    initial_accel_time = abs(15*kts - speed)/ bs.traf.perf.axmax[acidx]
+                                    cruise_dist = dist - accel_dist - turndist - accel_conf_dist
+                                    cruise_time = cruise_dist / (15 * kts)
+                                    time_diff = initial_accel_time + cruise_time
+                                    time += time_diff
+                                    
+                                    start_turn = True
+                                        
+                                else:
+                                # Cruise distance
+                                    cruise_dist = dist - accel_dist - turndist
+                                    cruise_time = cruise_dist / (15 * kts)
+                                    time_diff = cruise_time
+                                
+                                    # Deceleration time
+                                    accel_time = (
+                                        abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                                    )
+    
+                                    # No turn time since turn is made for the second waypoint
+                                    start_turn = True
+    
+                                    # Add it all up
+                                    time_diff = cruise_time + accel_time
+                                    time += time_diff
+
+                                current_wp += 1
+                                first_run = False
+
+                                # bs.scr.echo(f"Initial turn Cruise region time: {time}")
+
+                            else:
+                                
+                                if speed < 5*kts:
+                                    accel_dist = distaccel(speed, 5*kts, bs.traf.perf.axmax[acidx])
+                                    if dist - turndist < accel_dist:
+                                        final_velocity = finalVaccel(dist - turndist,speed, bs.traf.perf.axmax[acidx])
+                                        accel_time = (final_velocity - speed)/ bs.traf.perf.axmax[acidx]
+                                        time_diff = accel_time
+                                        time += time_diff
+                                        second_run = True
+                                    
+                                    else: 
+                                        remaining_dist = dist - turndist
+                                        accel_time = (speed - 5*kts)/ bs.traf.perf.axmax[acidx]
+                                        
+                                        cruise_dist = remaining_dist - accel_dist
+                                        cruise_time = cruise_dist / (5*kts)
+                                        
+                                        time_diff = accel_time + cruise_time
+                                        time += time_diff
+                                        
+                                        
+                                else:       
+                                    # deceleration time
+                                    accel_time = (
+                                        abs(bs.traf.tas[acidx] - 5 * kts)
+                                        / bs.traf.perf.axmax[acidx]
+                                    )
+                                    # Add it all up
+                                    time_diff = accel_time
+                                    time += time_diff
+
+                                start_turn = True
+                                current_wp += 1
+                                first_run = False
+                        
+                            # Drone going away from a turn in the first run
+                        elif acrte.wpflyturn[current_wp - 1] == True:
+                            wpqdr, _ = kwikqdrdist(
+                                acrte.wplat[current_wp - 2],
+                                acrte.wplon[current_wp - 2],
+                                acrte.wplat[current_wp - 1],
+                                acrte.wplon[current_wp - 1],
+                            )
+                            nextwpqdr, leg_dist = kwikqdrdist(
+                                acrte.wplat[current_wp - 1],
+                                acrte.wplon[current_wp - 1],
+                                acrte.wplat[current_wp],
+                                acrte.wplon[current_wp],
+                            )
+                            leg_dist = leg_dist * nm
+                            turndist, turnrad, hdgchange = bs.traf.actwp.kwikcalcturn(
+                                5 * kts, 25, wpqdr, nextwpqdr
+                            )
+                            accel_dist = distaccel(
+                                5 * kts, 15 * kts, bs.traf.perf.axmax[acidx]
+                            )
+                            turning_dist = abs(2 * np.pi * turnrad * hdgchange / 360)
+                            cruise_dist = leg_dist - accel_dist - turndist
+
+                            if dist < accel_dist:
+                                if distaccel(speed, 15*kts,bs.traf.perf.axmax[acidx]) > dist:
+                                    final_velocity = finalVaccel(dist, speed,bs.traf.perf.axmax[acidx])
+                                    accel_time = abs(final_velocity - speed)/ bs.traf.perf.axmax[acidx]
+                                    second_run = True
+                                    
+                                    time_diff = accel_time
+                                    time += time_diff
+                                
+                                else:
+                                    # acceleration time
+                                    accel_time = (
+                                        abs(bs.traf.tas[acidx] - 15 * kts)
+                                        / bs.traf.perf.axmax[acidx]
+                                    )
+
+                                    time_diff = accel_time
+                                    time += time_diff
+
+                                current_wp += 1
+                                first_run = False
+
+                            elif dist < accel_dist + cruise_dist:
+                                if speed < 5*kts:
+                                    accel_dist_conf = distaccel(speed, 5*kts, bs.traf.perf.axmax[acidx])
+                                    accel_time = (15*kts - speed)/bs.traf.perf.axmax[acidx]
+                                    cruise_time = (dist-accel_dist- accel_dist_conf) / (5*kts)
+                                    time_diff = accel_time + cruise_time
+                                    time += time_diff
+                                
+                                else:
+                                    # acceleration time
+                                    accel_time = (
+                                        abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                                    )
+
+                                    # cruise time
+                                    partial_cruise_dist = dist - accel_dist
+                                    cruise_time = partial_cruise_dist / (5 * kts)
+
+                                    # Add it all up
+                                    time_diff = cruise_time + accel_time
+                                    time += time_diff
+
+                                current_wp += 1
+                                first_run = False
+
+                            else: #WHAT HAPPENS DURING A CONFLICT MID-TURN
+                                # acceleration time
+                                accel_time = (
+                                    abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                                )
+                                if speed < 5 *kts:
+                                    initial_accel_dist = distaccel(speed, 5*kts, bs.traf.perf.axmax[acidx])
+                                    initial_accel_time = abs(5*kts - speed)/ bs.traf.perf.axmax[acidx]
+                                    
+                                    cruise_dist = cruise_dist - initial_accel_dist
+                                    cruise_time = cruise_dist / (5 * kts)
+                                    
+                                    turn_time = turning_dist * 0.5 / (5 * kts)
+                                    
+                                    time_diff = cruise_time + accel_time + turn_time + initial_accel_time
+                                    time += time_diff
+                                    
+
+                                else:
+                                    # cruise time
+                                    cruise_time = cruise_dist / (5 * kts)
+
+                                    # Turning time
+                                    turn_time = turning_dist * 0.5 / (5 * kts)
+
+                                    # Add it all up
+                                    time_diff = cruise_time + accel_time + turn_time
+                                    time += time_diff
+
+                                current_wp += 1
+                                first_run = False
+
+                        # Regular cruise
+                        else:
+                            if speed < 15*kts:
+                                accel_dist = distaccel(speed,15*kts, bs.traf.perf.axmax[acidx])
+                                if accel_dist > dist:
+                                    final_velocity = finalVaccel(dist, speed, bs.traf.perf.axmax[acidx])
+                                    accel_time = abs(final_velocity - speed)/ bs.traf.perf.axmax[acidx]
+                                    time_diff = accel_time
+                                    time += time_diff
+                                    second_run = True
+                                else: 
+                                    accel_time = abs(15*kts - speed)/ bs.traf.perf.axmax[acidx]
+                                    cruise_time = (dist-accel_dist)/ (15*kts)
+                                    time_diff = accel_time + cruise_time
+                                    time += time_diff
+                            else:
+                                time += dist / (15 * kts)
+                            first_run = False
+                            current_wp += 1         
 
                     # Drone going towards a turn in the first run
-                    if (
+                    elif (
                         acrte.wpflyturn[current_wp] == True
                         and acrte.wpflyturn[current_wp - 1] == True
                     ):
@@ -257,7 +570,6 @@ class JasonCD(ConflictDetection):
 
                             current_wp += 1
                             first_run = False
-                            print(f"time from 1 {time_diff}")
 
                             # bs.scr.echo(f"Initial turn Decell region time: {time}")
 
@@ -401,27 +713,16 @@ class JasonCD(ConflictDetection):
                         time += dist / (15 * kts)
                         first_run = False
                         current_wp += 1
-
-                # Iterations after turn
-                elif start_turn == True:
-                    if acrte.wpflyturn[current_wp] == True:
-                        # second part of initial turn
-                        wpqdr, _ = kwikqdrdist(
+#First run ends here--------------------------------------------------------------------------------------------------------------------------------------------
+                elif second_run == True:
+                    if start_turn == True:
+                        prevwpqdr, _ = kwikqdrdist(
                             acrte.wplat[current_wp - 2],
                             acrte.wplon[current_wp - 2],
-                            acrte.wplat[current_wp-1],
-                            acrte.wplon[current_wp-1],
+                            acrte.wplat[current_wp - 1],
+                            acrte.wplon[current_wp - 1],
                         )
-                                            
-                        turndist, turnrad, hdgchange = bs.traf.actwp.kwikcalcturn(
-                            5 * kts, 25, wpqdr, nextwpqdr
-                        )
-                        turning_dist = abs(2 * np.pi * turnrad * hdgchange / 360)
-                        
-                        initial_turn_time = turning_dist / (5 * kts)
-                        initial_turndist = turndist
 
-                        # Calculations for the second turn parameters
                         wpqdr, dist = kwikqdrdist(
                             acrte.wplat[current_wp - 1],
                             acrte.wplon[current_wp - 1],
@@ -429,6 +730,135 @@ class JasonCD(ConflictDetection):
                             acrte.wplon[current_wp],
                         )
                         dist = dist * nm
+
+                        turndist, turnrad, hdgchange = bs.traf.actwp.kwikcalcturn(
+                            5 * kts, 25, prevwpqdr, wpqdr
+                        )
+                        initial_turn_time = turning_dist / (5 * kts)
+                        initial_turndist = turndist
+                        
+                        initial_accel_time = abs(final_velocity - 5 *kts)
+                        initial_accel_dist = distaccel(final_velocity,5*kts,bs.traf.perf.axmax[acidx])
+                        if acrte.wpflyturn[current_wp] == True:
+                            nextwpqdr, _ = kwikqdrdist(
+                            acrte.wplat[current_wp],
+                            acrte.wplon[current_wp],
+                            acrte.wplat[current_wp + 1],
+                            acrte.wplon[current_wp + 1],
+                            )
+                            turndist, turnrad, hdgchange = bs.traf.actwp.kwikcalcturn(
+                                5 * kts, 25, wpqdr, nextwpqdr
+                            )
+                            
+                            cruise_dist = dist - initial_accel_dist - turndist - initial_turndist
+                            cruise_time = cruise_dist / (5*kts)
+                            
+                            time_diff = initial_turn_time + initial_accel_time + cruise_time
+                            time += time_diff
+                            second_run = False
+                            current_wp +=1
+                            
+                        else:
+                            accel_dist = distaccel(5*kts, 15*kts, bs.traf.perf.axmax[acidx])
+                            accel_time = abs(15*kts - 5*kts)/ bs.traf.perf.axmax[acidx]
+                            
+                            cruise_dist = dist - accel_dist - initial_accel_dist - initial_turndist
+                            cruise_time = cruise_dist/ (5*kts)
+                            
+                            time_diff = initial_turn_time + initial_accel_time + cruise_time + accel_time
+                            time += time_diff
+                            
+                            second_run = False
+                            current_wp +=1
+                            start_turn = False
+                    
+                    else:
+                        if acrte.wpflyturn[current_wp] == True:
+                            wpqdr, dist = kwikqdrdist(
+                                acrte.wplat[current_wp - 1],
+                                acrte.wplon[current_wp - 1],
+                                acrte.wplat[current_wp],
+                                acrte.wplon[current_wp],
+                            )
+                            dist = dist * nm
+                            nextwpqdr, _ = kwikqdrdist(
+                                acrte.wplat[current_wp],
+                                acrte.wplon[current_wp],
+                                acrte.wplat[current_wp + 1],
+                                acrte.wplon[current_wp + 1],
+                            )
+                            turndist, turnrad, hdgchange = bs.traf.actwp.kwikcalcturn(
+                                5 * kts, 25, wpqdr, nextwpqdr
+                            )
+                            
+                            initial_accel_time = abs(final_velocity - 15 *kts)
+                            initial_accel_dist = distaccel(final_velocity,15*kts,bs.traf.perf.axmax[acidx])
+                                
+                            
+                            accel_dist = distaccel(15*kts, 5*kts, bs.traf.perf.axmax[acidx])
+                            accel_time = abs(15*kts - 5*kts)/ bs.traf.perf.axmax[acidx]
+                            
+                            #Maybe something for when initial__accel > dist- accel_dist
+                            
+                            cruise_dist = dist - initial_accel_dist - turndist - accel_dist
+                            cruise_time = cruise_dist/ (15*kts)
+                            
+                            start_turn = True
+                            second_run = False
+                            
+                            time_diff = initial_accel_time + accel_time + cruise_time
+                            time += time_diff
+                            current_wp +=1
+                            
+                        else:
+                            _, dist = kwikqdrdist(
+                                acrte.wplat[current_wp - 1],
+                                acrte.wplon[current_wp - 1],
+                                acrte.wplat[current_wp],
+                                acrte.wplon[current_wp],
+                            )
+                            dist = dist * nm
+                            
+                            initial_accel_time = abs(final_velocity - 15 *kts)
+                            initial_accel_dist = distaccel(final_velocity,15*kts,bs.traf.perf.axmax[acidx])
+
+                            cruise_dist = dist - initial_accel_dist
+                            time_diff = cruise_dist / (15 * kts)
+                            time += time_diff
+                            
+                            second_run = False
+                            current_wp += 1
+                            
+                    
+#Second run ends here----------------------------------------------------------------------------------------------------------------------------
+                # Iterations after turn
+                elif start_turn == True:
+                    # second part of initial turn
+                    prevwpqdr, _ = kwikqdrdist(
+                        acrte.wplat[current_wp - 2],
+                        acrte.wplon[current_wp - 2],
+                        acrte.wplat[current_wp - 1],
+                        acrte.wplon[current_wp - 1],
+                    )
+
+                    wpqdr, dist = kwikqdrdist(
+                        acrte.wplat[current_wp - 1],
+                        acrte.wplon[current_wp - 1],
+                        acrte.wplat[current_wp],
+                        acrte.wplon[current_wp],
+                    )
+                    dist = dist * nm
+
+                    turndist, turnrad, hdgchange = bs.traf.actwp.kwikcalcturn(
+                        5 * kts, 25, prevwpqdr, wpqdr
+                    )
+                    turning_dist = abs(2 * np.pi * turnrad * hdgchange / 360)
+
+                    if acrte.wpflyturn[current_wp] == True:
+                        initial_turn_time = turning_dist / (5 * kts)
+                        initial_turndist = turndist
+
+                        # Calculations for the second turn parameters
                         nextwpqdr, _ = kwikqdrdist(
                             acrte.wplat[current_wp],
                             acrte.wplon[current_wp],
@@ -452,8 +882,6 @@ class JasonCD(ConflictDetection):
                         # Total time
                         time_diff = initial_turn_time + cruise_time
                         time += time_diff
-
-                        print(f"total dist of this turn {dist}")
 
                         current_wp += 1
 
@@ -539,20 +967,14 @@ class JasonCD(ConflictDetection):
                         time += time_diff
                         current_wp += 1
 
-                print(f"time {time} for wp {current_wp -1}")
                 # --------------------------------------------------------------------------------------------------------------------------------------------------
                 # Position Calculations
                 if floor_div < time // measurement_freq:
                     i = 0
-                    # print(f"time: {time}")
                     value = int(time // measurement_freq) - floor_div
                     while i < value and floor_div < dtlookahead / measurement_freq:
                         floor_div += 1
                         overshoot_time = time - floor_div * measurement_freq
-                        # print(f"floor div {floor_div} and overshoot {overshoot_time}")
-                        # print(f"overshoot_time: {overshoot_time}")
-                        # print(f"floor_div: {floor_div}")
-                        # print(i)
 
                         if (
                             acrte.wpflyturn[current_wp - 1] == True
@@ -618,10 +1040,6 @@ class JasonCD(ConflictDetection):
                                     bearing,
                                     overshoot_dist / nm,
                                 )
-
-                                if floor_div == 10:
-                                    print(f"overshoot dist {overshoot_dist}")
-                                    print(f"overshoot time {overshoot_time}")
 
                             # Ends in cruise part before turn
                             else:
@@ -786,31 +1204,29 @@ class JasonCD(ConflictDetection):
                                 overshoot_dist / nm,
                             )
 
-                        print(current_wp - 1)
                         # Data record
-                        # print(f"{acid} , {final_lat}")
                         array_measurement.append(
                             [acid, floor_div, final_lat, final_lon]
                         )
                         i += 1
-
                 try:
                     acrte.wpflyturn[current_wp]
                 except:
                     break
 
-        print("---------------------------------------------------------------")
+        #print("---------------------------------------------------------------------------------")
         confpairs = []
+        confinfo = []
         df = pd.DataFrame(array_measurement, columns=["acid", "part", "lat", "lon"])
 
-        if self.plot_toggle:
-            plt.scatter(
-                df.lat,
-                df.lon,
-                color="blue",
-                label=f"{df.acid}",
-            )
-            plt.show()
+        # if self.plot_toggle:
+        #    plt.scatter(
+        #        df.lat,
+        #        df.lon,
+        #        color="blue",
+        #        label=f"{df.acid}",
+        #    )
+        #    plt.show()
 
         try:
             parts = max(df["part"])
@@ -831,18 +1247,16 @@ class JasonCD(ConflictDetection):
                 dist = np.asarray(dist) * nm + 1e9 * I
 
                 conflicts = np.column_stack(np.where(dist < rpz))
-                # print(conflicts)
                 for pair in conflicts:
-                    # print(df["acid"].unique()[pair[0]])
                     conflictpair = (
                         df[df["part"] == i].acid.unique()[pair[0]],
                         df[df["part"] == i].acid.unique()[pair[1]],
                     )
                     if conflictpair not in confpairs:
                         confpairs.append(conflictpair)
+                        confinfo.append([conflictpair, i])
 
         # Conflict Pairs
-        # print(confpairs)
         bs.scr.echo(f"{confpairs}")
         self.confpairs = confpairs
 
@@ -917,7 +1331,7 @@ class JasonCD(ConflictDetection):
         # bs.scr.echo(f"{lospairs}")
         self.lospairs = lospairs
 
-        return array_measurement, confpairs, inconf, lospairs
+        return confpairs, inconf, lospairs, df, confinfo
 
     def sb_detect(self, ownship, intruder, rpz, hpz, dtlookahead):
         """State-based detection."""
@@ -1178,3 +1592,6 @@ def distaccel(v0, v1, axabs):
     axabs is acceleration/deceleration of which absolute value will be used
     solve for x: x = vo*t + 1/2*a*t*t    v = v0 + a*t"""
     return 0.5 * np.abs(v1 * v1 - v0 * v0) / np.maximum(0.001, np.abs(axabs))
+
+def finalVaccel(dist, v0, axabs):
+    return np.sqrt(2*axabs*dist + v0**2)
