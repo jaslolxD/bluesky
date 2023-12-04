@@ -4,7 +4,7 @@ from bluesky.traffic import Route
 from bluesky.core import Entity, timed_function
 from bluesky.stack import command
 from bluesky.tools.aero import kts, ft, nm
-from bluesky.tools.geo import kwikqdrdist, kwikpos
+from bluesky.tools.geo import kwikqdrdist, kwikpos, kwikdist
 from bluesky.tools.misc import degto180
 import shapely as sh
 import osmnx as ox
@@ -1261,29 +1261,62 @@ class JasonCD(ConflictDetection):
                     #print(len(df[df["part"] == i].acid.unique()))
                     #print("------------------------------------------------------------------------------------------")
                     conflictpair = (df[df["part"] == i].acid.unique()[pair[0]], df[df["part"] == i].acid.unique()[pair[1]])
-                    
+                    7 ,25-26
                     if conflictpair not in confpairs:
+                        bs.scr.echo(f"{conflictpair}")
                         coords1 = []
                         coords2 = []
                         acrte1 = Route._routes.get(conflictpair[0])
                         acrte2 = Route._routes.get(conflictpair[1])
                         waypoint1 = int(df[(df["acid"] == conflictpair[0]) & (df["part"] == i)].waypoint)
                         waypoint2 = int(df[(df["acid"] == conflictpair[1]) & (df["part"] == i)].waypoint)
+                        
+                        conf_dist = 0
+                        j = acrte1.iactwp
+                        currentwp = acrte1.wplat[j], acrte1.wplon[j]
+                        while conf_dist < 300:
+                            if j == len(acrte1.wplat)-1:
+                                break
+                            # Now, get next wp
+                            nextwp = (acrte1.wplat[j+1], acrte1.wplon[j+1])
+                            # Get the distance
+                            dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm
+                            # Add wp
+                            coords1.append((nextwp[1], nextwp[0]))
+                            # Set new wp
+                            j += 1
+                            currentwp = nextwp
+                        
+                        conf_dist = 0    
+                        j = acrte2.iactwp
+                        currentwp = acrte2.wplat[j], acrte2.wplon[j]
+                        while conf_dist < 200:
+                            if j == len(acrte2.wplat)-1:
+                                break
+                            # Now, get next wp
+                            nextwp = (acrte2.wplat[j+1], acrte2.wplon[j+1])
+                            # Get the distance
+                            dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm
+                            # Add wp
+                            coords2.append((nextwp[1], nextwp[0]))
+                            # Set new wp
+                            j += 1
+                            currentwp = nextwp
 
-                        for j in range(10):
-                            try:
-                                acrte1.wplat[waypoint1 +j]
-                            except:
-                                pass
-                            else:
-                                coords1.append((acrte1.wplat[waypoint1 +j], acrte1.wplon[waypoint1 +j]))
-                                
-                            try:
-                                acrte2.wplat[waypoint2 +j]
-                            except:
-                                pass
-                            else:
-                                coords2.append((acrte2.wplat[waypoint2 +j], acrte2.wplon[waypoint2 +j]))
+                        #for j in range(10):
+                        #    try:
+                        #        acrte1.wplat[waypoint1 +j]
+                        #    except:
+                        #        pass
+                        #    else:
+                        #        coords1.append((acrte1.wplat[waypoint1 +j], acrte1.wplon[waypoint1 +j]))
+                        #        
+                        #    try:
+                        #        acrte2.wplat[waypoint2 +j]
+                        #    except:
+                        #        pass
+                        #    else:
+                        #        coords2.append((acrte2.wplat[waypoint2 +j], acrte2.wplon[waypoint2 +j]))
                         
                         if len(coords1) >1:
                             linestring1 = sh.LineString(coords1)
@@ -1296,8 +1329,9 @@ class JasonCD(ConflictDetection):
                         else:
                             linestring2 = sh.Point(coords2)
 
-
-                        if not sh.distance(linestring1, linestring2) > 0:
+                        #bs.scr.echo(f"distance {linestring1.intersects(linestring2)}")
+                        #print(linestring1.intersects(linestring2))
+                        if linestring1.intersects(linestring2):
                             confpairs.append(conflictpair)
                             confinfo.append([conflictpair, i, waypoint1, waypoint2])
 
