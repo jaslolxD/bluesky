@@ -69,7 +69,8 @@ class trafficSpawner(Entity):
             f"bluesky/plugins/graph_genetic_algorithm/pickles"
         )
         # random.seed(1)
-        while bs.traf.ntraf < self.target_ntraf:
+        attempts = 0
+        while bs.traf.ntraf < self.target_ntraf and attempts < 100:
             count = 0
             dangerclose = False
             route_entry = random.randint(0, len(routes) - 1)
@@ -87,6 +88,7 @@ class trafficSpawner(Entity):
             if np.any(dist < 64):
                 #print("TOO CLOSE")
                 #bs.scr.echo("TOO CLOSE")
+                attempts += 1
                 continue
 
             acid = f"DR{self.traf_id}"
@@ -430,10 +432,6 @@ class trafficSpawner(Entity):
             if i == len(route.wplat)-2:
                 break
             # Now, get next wp
-            try:
-                route.wplat[i+1]
-            except: 
-                break
             nextwp = (route.wplat[i+1], route.wplon[i+1])
             # Get the distance
             dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm
