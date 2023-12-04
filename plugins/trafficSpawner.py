@@ -396,12 +396,9 @@ class trafficSpawner(Entity):
         # Get the clipped routes
         clip1 = self.clip_route(idx1, 100, 100)
         clip2 = self.clip_route(idx2, 100, 100)
-        print(clip1)
-        print(clip2)
         # Get shapely lines
         line1 = LineString(clip1)
         line2 = LineString(clip2)
-        print(line1.intersects(line2))
         return line1.intersects(line2)
             
     def clip_route(self, idx, dist_front, dist_back):
