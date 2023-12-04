@@ -1261,7 +1261,6 @@ class JasonCD(ConflictDetection):
                     #print(len(df[df["part"] == i].acid.unique()))
                     #print("------------------------------------------------------------------------------------------")
                     conflictpair = (df[df["part"] == i].acid.unique()[pair[0]], df[df["part"] == i].acid.unique()[pair[1]])
-                    7 ,25-26
                     if conflictpair not in confpairs:
                         #bs.scr.echo(f"{conflictpair}")
                         coords1 = []
@@ -1275,9 +1274,13 @@ class JasonCD(ConflictDetection):
                         j = acrte1.iactwp
                         currentwp = acrte1.wplat[j], acrte1.wplon[j]
                         while conf_dist < 300:
-                            if j == len(acrte1.wplat)-1:
+                            if j == len(acrte1.wplat)-2:
                                 break
                             # Now, get next wp
+                            try:
+                                acrte1.wplat[j+1]
+                            except: 
+                                break
                             nextwp = (acrte1.wplat[j+1], acrte1.wplon[j+1])
                             # Get the distance
                             dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm
@@ -1290,10 +1293,14 @@ class JasonCD(ConflictDetection):
                         conf_dist = 0    
                         j = acrte2.iactwp
                         currentwp = acrte2.wplat[j], acrte2.wplon[j]
-                        while conf_dist < 200:
-                            if j == len(acrte2.wplat)-1:
+                        while conf_dist < 300:
+                            if j == len(acrte2.wplat)-2:
                                 break
                             # Now, get next wp
+                            try:
+                                acrte2.wplat[j+1]
+                            except: 
+                                break
                             nextwp = (acrte2.wplat[j+1], acrte2.wplon[j+1])
                             # Get the distance
                             dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm

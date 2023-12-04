@@ -427,9 +427,13 @@ class trafficSpawner(Entity):
         dist = 0
         currentwp = (bs.traf.lat[idx], bs.traf.lon[idx])
         while dist < dist_front:
-            if i == len(route.wplat)-1:
+            if i == len(route.wplat)-2:
                 break
             # Now, get next wp
+            try:
+                route.wplat[i+1]
+            except: 
+                break
             nextwp = (route.wplat[i+1], route.wplon[i+1])
             # Get the distance
             dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm
