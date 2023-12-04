@@ -1,11 +1,13 @@
-n_scenarios = 4
-traffic_densities = [10, 15 ,20]
-fileheader = "CDR_TRAJ_PRED"
+n_scenarios = 5
+traffic_densities = [40, 60, 80, 100]
+fileheader_cdr = "CDR_TRAJ_PRED"
+fileheader_state = "CDR_STATE"
+
 filelist = []
 
 for density in traffic_densities:
     for seed in range(n_scenarios):
-        f = open(rf"C:\Coding\bluesky_fork2\scenario\batches\scenarios\{fileheader}_{seed}_{density}.scn","w")
+        f = open(rf"C:\Coding\bluesky_fork2\scenario\batches\scenarios\{fileheader_cdr}_{seed}_{density}.scn","w")
         
         f.write(f"00:00:00>trafficnumber {density} \n")
         f.write(f"00:00:00>SEED {seed} \n")
@@ -13,13 +15,25 @@ for density in traffic_densities:
         f.write(f"00:00:00>reso jasoncr \n")
         f.write(f"00:00:00>startlogs \n")
         f.write(f"00:00:01>FF")
-        filelist.append(f"{fileheader}_{seed}_{density}")
+        
+        f_state = open(rf"C:\Coding\bluesky_fork2\scenario\batches\scenarios\{fileheader_state}_{seed}_{density}.scn","w")
+        f.write(f"00:00:00>trafficnumber {density} \n")
+        f.write(f"00:00:00>SEED {seed} \n")
+        f.write(f"00:00:00>cdmethod SBCD \n")
+        f.write(f"00:00:00>reso SBCR \n")
+        f.write(f"00:00:00>startlogs \n")
+        f.write(f"00:00:01>FF")
+        
+        
+        
+        filelist.append(f"{fileheader_cdr}_{seed}_{density}")
+        filelist.append(f"{fileheader_state}_{seed}_{density}")
         
 f_bat = open(rf"C:\Coding\bluesky_fork2\scenario\batch.scn","w")
 for file in filelist:
     f_bat.write(f"00:00:00.00>SCEN {file} \n")
     f_bat.write(f"00:00:00.00>PCALL batches\scenarios\{file}.scn \n")
-    f_bat.write(f"00:00:00>SCHEDULE 00:30:00 HOLD \n")
+    f_bat.write(f"00:00:00>SCHEDULE 01:00:00 HOLD \n")
     f_bat.write(f"00:00:00.00>FF \n \n")
 
     
