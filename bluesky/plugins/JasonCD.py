@@ -1275,6 +1275,7 @@ class JasonCD(ConflictDetection):
                         currentwp = acrte1.wplat[j], acrte1.wplon[j]
                         while conf_dist < 300:
                             if j == len(acrte1.wplat)-2:
+                                coords1.append((acrte1.wplon[j], acrte1.wplat[j]))
                                 break
                             # Now, get next wp
                             try:
@@ -1295,6 +1296,7 @@ class JasonCD(ConflictDetection):
                         currentwp = acrte2.wplat[j], acrte2.wplon[j]
                         while conf_dist < 300:
                             if j == len(acrte2.wplat)-2:
+                                coords2.append((acrte2.wplon[j], acrte2.wplat[j]))
                                 break
                             # Now, get next wp
                             try:
