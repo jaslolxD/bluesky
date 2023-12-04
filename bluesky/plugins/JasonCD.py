@@ -1281,6 +1281,7 @@ class JasonCD(ConflictDetection):
                             try:
                                 acrte1.wplat[j+1]
                             except: 
+                                coords1.append((acrte1.wplon[j], acrte1.wplat[j]))
                                 break
                             nextwp = (acrte1.wplat[j+1], acrte1.wplon[j+1])
                             # Get the distance
@@ -1302,6 +1303,7 @@ class JasonCD(ConflictDetection):
                             try:
                                 acrte2.wplat[j+1]
                             except: 
+                                coords2.append((acrte2.wplon[j], acrte2.wplat[j]))
                                 break
                             nextwp = (acrte2.wplat[j+1], acrte2.wplon[j+1])
                             # Get the distance
