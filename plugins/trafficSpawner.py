@@ -189,7 +189,7 @@ class trafficSpawner(Entity):
 
         stack.stack("HOLD")
         
-        
+    @command
     def trafficnumber(self, target_traf = 50):
         self.target_ntraf = int(target_traf)
         bs.scr.echo(f"Traffic number has been set to {int(target_traf)}")
