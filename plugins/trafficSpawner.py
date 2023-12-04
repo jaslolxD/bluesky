@@ -429,7 +429,7 @@ class trafficSpawner(Entity):
         dist = 0
         currentwp = (bs.traf.lat[idx], bs.traf.lon[idx])
         while dist < dist_front:
-            if i == len(route.wplat)-2:
+            if i >= len(route.wplat)-2:
                 break
             # Now, get next wp
             nextwp = (route.wplat[i+1], route.wplon[i+1])
