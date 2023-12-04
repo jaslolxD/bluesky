@@ -48,7 +48,7 @@ def generate_nodes(G):
     added_orig_nodes = [] 
     added_dest_nodes = []
 
-    while len(added_orig_nodes) < 200:
+    while len(added_orig_nodes) < 120:
         node = random.choice(list(G.nodes))
         node_lat = G.nodes[node]["y"]
         node_lon = G.nodes[node]["x"]
@@ -61,7 +61,6 @@ def generate_nodes(G):
             added_node_lat = G.nodes[node_entry]["y"]
             added_node_lon = G.nodes[node_entry]["x"]
             _, dist = kwikqdrdist(node_lat, node_lon, added_node_lat, added_node_lon)
-            dist = dist * nm
             
             if dist < 500:
                 node_too_close = True
@@ -70,7 +69,7 @@ def generate_nodes(G):
         if not node_too_close:
             added_orig_nodes.append(node)
     
-    while len(added_dest_nodes) < 200:
+    while len(added_dest_nodes) < 120:
         node = random.choice(list(G.nodes))
         node_lat = G.nodes[node]["y"]
         node_lon = G.nodes[node]["x"]
@@ -83,7 +82,6 @@ def generate_nodes(G):
             added_node_lat = G.nodes[node_entry]["y"]
             added_node_lon = G.nodes[node_entry]["x"]
             _, dist = kwikqdrdist(node_lat, node_lon, added_node_lat, added_node_lon)
-            dist = dist * nm
             
             if dist < 500:
                 node_too_close = True
@@ -97,9 +95,7 @@ def generate_nodes(G):
 def generate_route_pickle(input):
     origin, destination = input
     _ , dist = kwikqdrdist(G.nodes[origin]["y"], G.nodes[origin]["x"], G.nodes[destination]["y"], G.nodes[destination]["x"])
-    dist *= nm
-        
-    if dist > 5000:
+    if 1000 < dist < 6000:
         try:
             route = nx.shortest_path(G, origin, destination)
         except:

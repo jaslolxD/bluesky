@@ -121,7 +121,8 @@ losheader = \
     'LAT2 [deg],' + \
     'LON2 [deg],' + \
     'ALT2 [ft],' + \
-    'DIST [m]\n'
+    'DIST [m],' + \
+    'ROUTE_INTERSECT [-]\n'
 
 regheader = \
     '#######################################################\n' + \
