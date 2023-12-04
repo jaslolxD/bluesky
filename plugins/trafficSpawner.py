@@ -36,7 +36,7 @@ class trafficSpawner(Entity):
     def __init__(self):
         super().__init__()
         self.graph, self.nodes, self.edges = self.loadCity()
-        self.target_ntraf = 20
+        self.target_ntraf = 50
         self.traf_id = 1
         self.traf_spd = 10
         self.traf_alt = 100 * ft
@@ -92,7 +92,7 @@ class trafficSpawner(Entity):
             dangerclose = False
             route_entry = random.randint(0, len(routes) - 1)
             filename = routes[route_entry]
-            filename = "3582-2692.pkl"
+            #filename = "3582-2692.pkl"
             route = pd.read_pickle(
                 f"C:/Coding/bluesky_fork2/bluesky/plugins/graph_genetic_algorithm/pickles/{filename}"
             )
@@ -103,17 +103,17 @@ class trafficSpawner(Entity):
             dist = dist * nm
 
             if np.any(dist < 500):
-                print("TOO CLOSE")
-                bs.scr.echo("TOO CLOSE")
+                #print("TOO CLOSE")
+                #bs.scr.echo("TOO CLOSE")
                 continue
 
             acid = f"DR{self.traf_id}"
-            if acid == "DR24":
-                print(filename)
+            #if acid == "DR24":
+            #    print(filename)
             self.traf_id += 1
             actype = "M600"
             achdg, _ = kwikqdrdist(lats[0], lons[0], lats[1], lons[1])
-            bs.traf.cre(acid, actype, lats[0], lons[0], achdg, self.traf_alt, 15 * kts)
+            bs.traf.cre(acid, actype, lats[0], lons[0], achdg, self.traf_alt, 20 * kts)
             acrte = Route._routes.get(acid)
             acidx = bs.traf.id.index(acid)
             bs.scr.echo(f"spawning")
@@ -130,7 +130,7 @@ class trafficSpawner(Entity):
                         route[i][0],
                         route[i][1],
                         self.traf_alt,
-                        15 * kts,
+                        20 * kts,
                     )
                 elif i == 0:
                     future_angle = achdg
@@ -144,13 +144,15 @@ class trafficSpawner(Entity):
                         route[i][0],
                         route[i][1],
                         self.traf_alt,
-                        15 * kts,
+                        20 * kts,
                     )
                 else:
                     future_angle, _ = kwikqdrdist(
                         route[i][0], route[i][1], route[i + 1][0], route[i + 1][1]
                     )
-                    if abs(current_angle - future_angle) > 50:
+                    angle = current_angle - future_angle
+                    #Here
+                    if abs((angle + 180) % 360 - 180) > 50:
                         acrte.swflyby = False
                         acrte.swflyturn = True
                         acrte.turnspd = 5 * kts
@@ -175,7 +177,7 @@ class trafficSpawner(Entity):
                             route[i][0],
                             route[i][1],
                             self.traf_alt,
-                            15 * kts,
+                            20 * kts,
                         )
                 current_angle = future_angle
                 count += 1

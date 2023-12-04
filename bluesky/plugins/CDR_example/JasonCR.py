@@ -5,8 +5,10 @@ import pandas as pd
 from bluesky.traffic.asas import ConflictResolution
 from bluesky.core import Entity
 from bluesky.tools.aero import kts
-from bluesky.tools.geo import kwikqdrdist, kwikpos
+from bluesky.tools.geo import kwikqdrdist, kwikpos, kwikdist
+from bluesky.traffic import Route
 from shapely.geometry import Point
+from collections import Counter
 
 
 def init_plugin():
@@ -26,7 +28,7 @@ def init_plugin():
 class JasonCR(ConflictResolution):
     def __init__(self):
         super().__init__()
-        self.my_variable = None
+        self.apdict = dict()
         
       # Some helper functions
     def norm_sq(self, x):
@@ -40,7 +42,13 @@ class JasonCR(ConflictResolution):
         confpairs = conf.confpairs  # Pair IDs in conflict
         df = conf.df
         confinfo = conf.confinfo
-        
+        dupes = []
+        used_dr = []
+        conflist= []
+        for x,y in confpairs:
+            conflist.append(x)
+            
+        confcounter = Counter(conflist) 
 
         # Copies of aircraft autopilot stuff
         newgs = np.copy(ownship.ap.tas)
@@ -49,32 +57,63 @@ class JasonCR(ConflictResolution):
         newtrack = np.copy(ownship.ap.trk)
 
         for entry in confinfo:
+            self.apdict[entry[0][0]] = True
             # Get the aircraft IDX
+            flag = False
+            coords_list = []
             ownship_idx = bs.traf.id2idx(entry[0][0])
             intruder_idx = bs.traf.id2idx(entry[0][1])
             
-            qdr1, _ = kwikqdrdist( float(df[(df["acid"] == entry[0][0]) & (df["part"] == int(entry[1]) -1)].lat), float(df[(df["acid"] == entry[0][0]) & (df["part"] == int(entry[1]) -1)].lon), 
-                                  float(df[(df["acid"] == entry[0][0]) & (df["part"] == int(entry[1]))].lat), float(df[(df["acid"] == entry[0][0]) & (df["part"] == int(entry[1]))].lon) 
-                                  )
+            acrte1 = Route._routes.get(entry[0][0])
+            acrte2 = Route._routes.get(entry[0][1])
             
-            qdr2, _ = kwikqdrdist( float(df[(df["acid"] == entry[0][1]) & (df["part"] == int(entry[1]) -1)].lat), float(df[(df["acid"] == entry[0][1]) & (df["part"] == int(entry[1]) -1)].lon), 
-                                  float(df[(df["acid"] == entry[0][1]) & (df["part"] == int(entry[1]))].lat), float(df[(df["acid"] == entry[0][1]) & (df["part"] == int(entry[1]))].lon) 
-                                  )
-
-            print(qdr1)
-            print(qdr2)
-            print("------------------")
-            # Get the new speeds for the ownship.
-            # Don't forget that conflict pairs includes both (idx1, idx2) and
-            # (idx2, idx1), so only give a command for the first aircraft in the pair.
+            for i in range(10):
+                try:
+                    acrte1.wplat[entry[2] + i]
+                except:
+                    break
+                else:
+                    coords_list.append((acrte1.wplat[entry[2] + i], acrte1.wplon[entry[2] + i]))
+                
+            for i in range(10):
+                try:
+                    acrte2.wplat[entry[3] + i]
+                except:
+                    break
+                else:
+                    if (acrte2.wplat[entry[3] + i], acrte2.wplon[entry[3] + i]) in coords_list:
+                        dist1 = kwikdist(bs.traf.lat[ownship_idx], bs.traf.lon[ownship_idx], acrte2.wplat[entry[3] + i], acrte2.wplon[entry[3] + i])
+                        dist2 = kwikdist(bs.traf.lat[intruder_idx], bs.traf.lon[intruder_idx], acrte2.wplat[entry[3] + i], acrte2.wplon[entry[3] + i])
+                        if dist1 >= dist2:
+                            newgs[ownship_idx] = 0
+                            self.apdict[entry[0][0]] = False
+                            #bs.scr.echo(f"slowing down {entry[0][0]}")
+                        flag = True
+                        break
             
             
+            if flag:
+                continue
             
-            #if ownship_idx < intruder_idx:
-            #    newgs[intruder_idx] = 5 * kts
-#
-            #else:
-            #    newgs[ownship_idx] = 5 * kts
+            #bs.scr.echo(f"{entry[0][0]} waypoint {entry[2]} | {entry[0][1]} waypoint {entry[3]}")
+                
+            if confcounter[entry[0][0]] > 1 and confcounter[entry[0][0]] >= confcounter[entry[0][1]]:
+                newgs[ownship_idx] = 0
+                self.apdict[entry[0][0]] = False
+                #bs.scr.echo("it happened 2")
+                if confcounter[entry[0][0]] >= confcounter[entry[0][1]]:
+                    confcounter[entry[0][0]] += 1
+                
+            #elif confcounter[entry[0][1]] > 1 and confcounter[entry[0][0]] < confcounter[entry[0][1]]:
+            #    newgs[intruder_idx] = 0
+            #    bs.scr.echo("it happened 3")
+            
+            
+            else:
+                #bs.scr.echo("It happened 4")
+                if ownship_idx > intruder_idx:
+                    newgs[ownship_idx] = 0
+                    self.apdict[entry[0][0]] = False
 
         return newtrack, newgs, newvs, newalt
 
@@ -117,7 +156,7 @@ class JasonCR(ConflictResolution):
         their CPA.
         """
         # Add new conflicts to resopairs and confpairs_all and new losses to lospairs_all
-        self.resopairs.update(conf.confpairs)   
+        self.resopairs.update(conf.confpairs) 
         # Conflict pairs to be deleted
         delpairs = set()
         changeactive = dict()   
@@ -136,7 +175,7 @@ class JasonCR(ConflictResolution):
             # If the ownship aircraft is deleted remove its conflict from the list
             if idx1 < 0:
                 delpairs.add(conflict)
-                self.stopping_dict.pop(bs.traf.id[idx1] + bs.traf.id[idx2], False)
+                #self.stopping_dict.pop(bs.traf.id[idx1] + bs.traf.id[idx2], False)
                 continue
             
             if idx2 >= 0:
@@ -183,18 +222,22 @@ class JasonCR(ConflictResolution):
                 )   
             # Start recovery for ownship if intruder is deleted, or if past CPA
             # and not in horizontal LOS or a bouncing conflict
-            if idx2 >= 0 and (not past_cpa or hor_los or is_bouncing or dist_ok):
+            if idx2 >= 0 and (not past_cpa or hor_los or is_bouncing or not dist_ok):
                 ##### ANDREI'S CHANGE -> also added the dist_ok here ----  ^
                 # Enable ASAS for this aircraft
                 changeactive[idx1] = True
+                # Ok but check if we can set AP speed for the ownship
+                #if conflict[0] in self.apdict and self.apdict[conflict[0]]:
+                #    bs.traf.cr.tas[idx1] = bs.traf.ap.tas[idx1]
+                    
             else:
                 # Switch ASAS off for ownship if there are no other conflicts
                 # that this aircraft is involved in.
                 changeactive[idx1] = changeactive.get(idx1, False)
                 # If conflict is solved, remove it from the resopairs list
                 delpairs.add(conflict)
-                # Remove this pair from the stopping dict
-                self.stopping_dict.pop(bs.traf.id[idx1] + bs.traf.id[idx2], False)  
+                # Remove this pair from the ap dict
+                #self.apdict.pop(conflict[0])
         for idx, active in changeactive.items():
             # Loop a second time: this is to avoid that ASAS resolution is
             # turned off for an aircraft that is involved simultaneously in

@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.express as px
 import osmnx as ox
+from collections import Counter
 
 nm = 1852.0
 
@@ -77,6 +78,8 @@ def finalVaccel(dist, v0, axabs):
 
 # THIS PICKLE IS FUCKED
 #3582-2692.pkl
+x= [0,3]
+print(len(x))
 
 array_measurement = [
     ["DR1", 1, 40.80586699999998, -73.9528064],
@@ -106,8 +109,9 @@ for i in range(1, parts + 1):
 #    print(conflicts)
 #    print(qdr)
     for pair in conflicts:
-        # print(pair)
-        conflictpair = df["acid"].unique()[pair[0]], df["acid"].unique()[pair[1]]
+        print(pair)
+        print(df[df["part"] == i].acid.unique())
+        conflictpair = (df[df["part"] == i].acid.unique()[pair[0]], df[df["part"] == i].acid.unique()[pair[1]])
         if conflictpair not in confpairs:
             confpairs.append(conflictpair)
             confinfo.append([conflictpair, i])
@@ -116,12 +120,23 @@ for i in range(1, parts + 1):
 
 #print(confinfo)
 #print(df)
-for entry in confinfo:
-    qdr1, _ = kwikqdrdist( df[(df["acid"] == entry[0][0]) & (df["part"] == entry[1] -1)].lat, df[(df["acid"] == entry[0][0]) & (df["part"] == entry[1] -1)].lon, 
-                                  df[(df["acid"] == entry[0][0]) & (df["part"] == entry[1])].lat, df[(df["acid"] == entry[0][0]) & (df["part"] == entry[1])].lon 
-                                  )
-    print(df[(df["acid"] == entry[0][0]) & (df["part"] == entry[1])])
+#for entry in confinfo:
+#    qdr1, _ = kwikqdrdist( df[(df["acid"] == entry[0][0]) & (df["part"] == entry[1] -1)].lat, df[(df["acid"] == entry[0][0]) & (df["part"] == entry[1] -1)].lon, 
+#                                  df[(df["acid"] == entry[0][0]) & (df["part"] == entry[1])].lat, df[(df["acid"] == entry[0][0]) & (df["part"] == entry[1])].lon 
+#                                  )
+#    print(df[(df["acid"] == entry[0][0]) & (df["part"] == entry[1])])
     #print(df.query(f"part == {entry[1]} & acid == {entry[0][0]}"))
+    
+conflist= []
+for x,y in confpairs:
+    conflist.append(x)
+    
+confcounter = Counter(conflist)
+#print(type(confcounter))
+#
+#print(confcounter["DR1"])
+#print("CR it works on this")
+
  
 done_pairs = []
 #for entry in confpairs:

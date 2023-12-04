@@ -6,6 +6,7 @@ from bluesky.stack import command
 from bluesky.tools.aero import kts, ft, nm
 from bluesky.tools.geo import kwikqdrdist, kwikpos
 from bluesky.tools.misc import degto180
+import shapely as sh
 import osmnx as ox
 import networkx as nx
 import geopandas as gpd
@@ -71,6 +72,7 @@ class JasonCD(ConflictDetection):
         self.plot_toggle = False
         self.df = []
         self.confinfo = []
+        self.cruise_spd = 20 * kts
 
         # Logging
         self.conflictlog = datalog.crelog("CDR_CONFLICTLOG", None, confheader)
@@ -121,14 +123,14 @@ class JasonCD(ConflictDetection):
         # confpairs has conflicts observed from both sides (a, b) and (b, a)
         # confpairs_unique keeps only one of these
         confpairs_unique = {frozenset(pair) for pair in self.confpairs}
-        # lospairs_unique = {frozenset(pair) for pair in self.lospairs}
+        lospairs_unique = {frozenset(pair) for pair in self.lospairs}
 
         self.confpairs_all.extend(confpairs_unique - self.confpairs_unique)
-        # self.lospairs_all.extend(lospairs_unique - self.lospairs_unique)
+        self.lospairs_all.extend(lospairs_unique - self.lospairs_unique)
 
         # Update confpairs_unique and lospairs_unique
         self.confpairs_unique = confpairs_unique
-        # self.lospairs_unique = lospairs_unique
+        self.lospairs_unique = lospairs_unique
 
         # Update the logging
         self.update_log()
@@ -313,16 +315,16 @@ class JasonCD(ConflictDetection):
                                 5 * kts, 25, wpqdr, nextwpqdr
                             )
                             accel_dist = distaccel(
-                                15 * kts, 5 * kts, bs.traf.perf.axmax[acidx]
+                                self.cruise_spd, 5 * kts, bs.traf.perf.axmax[acidx]
                             )
                             turning_dist = abs(2 * np.pi * turnrad * hdgchange / 360)
 
                             if dist > turndist + accel_dist:
-                                if speed < 15*kts:
-                                    accel_conf_dist = distaccel(speed, 15*kts,bs.traf.perf.axmax[acidx])
-                                    initial_accel_time = abs(15*kts - speed)/ bs.traf.perf.axmax[acidx]
+                                if speed < self.cruise_spd:
+                                    accel_conf_dist = distaccel(speed, self.cruise_spd,bs.traf.perf.axmax[acidx])
+                                    initial_accel_time = abs(self.cruise_spd - speed)/ bs.traf.perf.axmax[acidx]
                                     cruise_dist = dist - accel_dist - turndist - accel_conf_dist
-                                    cruise_time = cruise_dist / (15 * kts)
+                                    cruise_time = cruise_dist / (self.cruise_spd)
                                     time_diff = initial_accel_time + cruise_time
                                     time += time_diff
                                     
@@ -331,12 +333,12 @@ class JasonCD(ConflictDetection):
                                 else:
                                 # Cruise distance
                                     cruise_dist = dist - accel_dist - turndist
-                                    cruise_time = cruise_dist / (15 * kts)
+                                    cruise_time = cruise_dist / (self.cruise_spd)
                                     time_diff = cruise_time
                                 
                                     # Deceleration time
                                     accel_time = (
-                                        abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                                        abs(self.cruise_spd - 5 * kts) / bs.traf.perf.axmax[acidx]
                                     )
     
                                     # No turn time since turn is made for the second waypoint
@@ -406,13 +408,13 @@ class JasonCD(ConflictDetection):
                                 5 * kts, 25, wpqdr, nextwpqdr
                             )
                             accel_dist = distaccel(
-                                5 * kts, 15 * kts, bs.traf.perf.axmax[acidx]
+                                5 * kts, self.cruise_spd, bs.traf.perf.axmax[acidx]
                             )
                             turning_dist = abs(2 * np.pi * turnrad * hdgchange / 360)
                             cruise_dist = leg_dist - accel_dist - turndist
 
                             if dist < accel_dist:
-                                if distaccel(speed, 15*kts,bs.traf.perf.axmax[acidx]) > dist:
+                                if distaccel(speed, self.cruise_spd,bs.traf.perf.axmax[acidx]) > dist:
                                     final_velocity = finalVaccel(dist, speed,bs.traf.perf.axmax[acidx])
                                     accel_time = abs(final_velocity - speed)/ bs.traf.perf.axmax[acidx]
                                     second_run = True
@@ -423,7 +425,7 @@ class JasonCD(ConflictDetection):
                                 else:
                                     # acceleration time
                                     accel_time = (
-                                        abs(bs.traf.tas[acidx] - 15 * kts)
+                                        abs(bs.traf.tas[acidx] - self.cruise_spd)
                                         / bs.traf.perf.axmax[acidx]
                                     )
 
@@ -436,7 +438,7 @@ class JasonCD(ConflictDetection):
                             elif dist < accel_dist + cruise_dist:
                                 if speed < 5*kts:
                                     accel_dist_conf = distaccel(speed, 5*kts, bs.traf.perf.axmax[acidx])
-                                    accel_time = (15*kts - speed)/bs.traf.perf.axmax[acidx]
+                                    accel_time = (self.cruise_spd - speed)/bs.traf.perf.axmax[acidx]
                                     cruise_time = (dist-accel_dist- accel_dist_conf) / (5*kts)
                                     time_diff = accel_time + cruise_time
                                     time += time_diff
@@ -444,7 +446,7 @@ class JasonCD(ConflictDetection):
                                 else:
                                     # acceleration time
                                     accel_time = (
-                                        abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                                        abs(self.cruise_spd - 5 * kts) / bs.traf.perf.axmax[acidx]
                                     )
 
                                     # cruise time
@@ -461,7 +463,7 @@ class JasonCD(ConflictDetection):
                             else: #WHAT HAPPENS DURING A CONFLICT MID-TURN
                                 # acceleration time
                                 accel_time = (
-                                    abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                                    abs(self.cruise_spd - 5 * kts) / bs.traf.perf.axmax[acidx]
                                 )
                                 if speed < 5 *kts:
                                     initial_accel_dist = distaccel(speed, 5*kts, bs.traf.perf.axmax[acidx])
@@ -492,8 +494,8 @@ class JasonCD(ConflictDetection):
 
                         # Regular cruise
                         else:
-                            if speed < 15*kts:
-                                accel_dist = distaccel(speed,15*kts, bs.traf.perf.axmax[acidx])
+                            if speed < self.cruise_spd:
+                                accel_dist = distaccel(speed,self.cruise_spd, bs.traf.perf.axmax[acidx])
                                 if accel_dist > dist:
                                     final_velocity = finalVaccel(dist, speed, bs.traf.perf.axmax[acidx])
                                     accel_time = abs(final_velocity - speed)/ bs.traf.perf.axmax[acidx]
@@ -501,12 +503,12 @@ class JasonCD(ConflictDetection):
                                     time += time_diff
                                     second_run = True
                                 else: 
-                                    accel_time = abs(15*kts - speed)/ bs.traf.perf.axmax[acidx]
-                                    cruise_time = (dist-accel_dist)/ (15*kts)
+                                    accel_time = abs(self.cruise_spd - speed)/ bs.traf.perf.axmax[acidx]
+                                    cruise_time = (dist-accel_dist)/ (self.cruise_spd)
                                     time_diff = accel_time + cruise_time
                                     time += time_diff
                             else:
-                                time += dist / (15 * kts)
+                                time += dist / (self.cruise_spd)
                             first_run = False
                             current_wp += 1         
 
@@ -590,18 +592,18 @@ class JasonCD(ConflictDetection):
                             5 * kts, 25, wpqdr, nextwpqdr
                         )
                         accel_dist = distaccel(
-                            15 * kts, 5 * kts, bs.traf.perf.axmax[acidx]
+                            self.cruise_spd, 5 * kts, bs.traf.perf.axmax[acidx]
                         )
                         turning_dist = abs(2 * np.pi * turnrad * hdgchange / 360)
 
                         if dist > turndist + accel_dist:
                             # Cruise distance
                             cruise_dist = dist - accel_dist - turndist
-                            cruise_time = cruise_dist / (15 * kts)
+                            cruise_time = cruise_dist / (self.cruise_spd)
 
                             # Deceleration time
                             accel_time = (
-                                abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                                abs(self.cruise_spd - 5 * kts) / bs.traf.perf.axmax[acidx]
                             )
 
                             # No turn time since turn is made for the second waypoint
@@ -654,7 +656,7 @@ class JasonCD(ConflictDetection):
                             5 * kts, 25, wpqdr, nextwpqdr
                         )
                         accel_dist = distaccel(
-                            5 * kts, 15 * kts, bs.traf.perf.axmax[acidx]
+                            5 * kts, self.cruise_spd, bs.traf.perf.axmax[acidx]
                         )
                         turning_dist = abs(2 * np.pi * turnrad * hdgchange / 360)
                         cruise_dist = leg_dist - accel_dist - turndist
@@ -662,7 +664,7 @@ class JasonCD(ConflictDetection):
                         if dist < accel_dist:
                             # acceleration time
                             accel_time = (
-                                abs(bs.traf.tas[acidx] - 15 * kts)
+                                abs(bs.traf.tas[acidx] - self.cruise_spd)
                                 / bs.traf.perf.axmax[acidx]
                             )
 
@@ -675,7 +677,7 @@ class JasonCD(ConflictDetection):
                         elif dist < accel_dist + cruise_dist:
                             # acceleration time
                             accel_time = (
-                                abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                                abs(self.cruise_spd - 5 * kts) / bs.traf.perf.axmax[acidx]
                             )
 
                             # cruise time
@@ -692,7 +694,7 @@ class JasonCD(ConflictDetection):
                         else:
                             # acceleration time
                             accel_time = (
-                                abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                                abs(self.cruise_spd - 5 * kts) / bs.traf.perf.axmax[acidx]
                             )
 
                             # cruise time
@@ -710,7 +712,8 @@ class JasonCD(ConflictDetection):
 
                     # Regular cruise
                     else:
-                        time += dist / (15 * kts)
+                        time_diff = dist / (self.cruise_spd)
+                        time += time_diff
                         first_run = False
                         current_wp += 1
 #First run ends here--------------------------------------------------------------------------------------------------------------------------------------------
@@ -759,8 +762,8 @@ class JasonCD(ConflictDetection):
                             current_wp +=1
                             
                         else:
-                            accel_dist = distaccel(5*kts, 15*kts, bs.traf.perf.axmax[acidx])
-                            accel_time = abs(15*kts - 5*kts)/ bs.traf.perf.axmax[acidx]
+                            accel_dist = distaccel(5*kts, self.cruise_spd, bs.traf.perf.axmax[acidx])
+                            accel_time = abs(self.cruise_spd - 5*kts)/ bs.traf.perf.axmax[acidx]
                             
                             cruise_dist = dist - accel_dist - initial_accel_dist - initial_turndist
                             cruise_time = cruise_dist/ (5*kts)
@@ -791,17 +794,17 @@ class JasonCD(ConflictDetection):
                                 5 * kts, 25, wpqdr, nextwpqdr
                             )
                             
-                            initial_accel_time = abs(final_velocity - 15 *kts)
-                            initial_accel_dist = distaccel(final_velocity,15*kts,bs.traf.perf.axmax[acidx])
+                            initial_accel_time = abs(final_velocity - self.cruise_spd)
+                            initial_accel_dist = distaccel(final_velocity,self.cruise_spd,bs.traf.perf.axmax[acidx])
                                 
                             
-                            accel_dist = distaccel(15*kts, 5*kts, bs.traf.perf.axmax[acidx])
-                            accel_time = abs(15*kts - 5*kts)/ bs.traf.perf.axmax[acidx]
+                            accel_dist = distaccel(self.cruise_spd, 5*kts, bs.traf.perf.axmax[acidx])
+                            accel_time = abs(self.cruise_spd - 5*kts)/ bs.traf.perf.axmax[acidx]
                             
                             #Maybe something for when initial__accel > dist- accel_dist
                             
                             cruise_dist = dist - initial_accel_dist - turndist - accel_dist
-                            cruise_time = cruise_dist/ (15*kts)
+                            cruise_time = cruise_dist/ (self.cruise_spd)
                             
                             start_turn = True
                             second_run = False
@@ -819,11 +822,11 @@ class JasonCD(ConflictDetection):
                             )
                             dist = dist * nm
                             
-                            initial_accel_time = abs(final_velocity - 15 *kts)
-                            initial_accel_dist = distaccel(final_velocity,15*kts,bs.traf.perf.axmax[acidx])
+                            initial_accel_time = abs(final_velocity - self.cruise_spd)
+                            initial_accel_dist = distaccel(final_velocity,self.cruise_spd,bs.traf.perf.axmax[acidx])
 
                             cruise_dist = dist - initial_accel_dist
-                            time_diff = cruise_dist / (15 * kts)
+                            time_diff = cruise_dist / (self.cruise_spd)
                             time += time_diff
                             
                             second_run = False
@@ -891,9 +894,9 @@ class JasonCD(ConflictDetection):
 
                         # Acceleration
                         accel_dist = distaccel(
-                            5 * kts, 15 * kts, bs.traf.perf.axmax[acidx]
+                            5 * kts, self.cruise_spd, bs.traf.perf.axmax[acidx]
                         )
-                        accel_time = abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                        accel_time = abs(self.cruise_spd - 5 * kts) / bs.traf.perf.axmax[acidx]
 
                         # Cruise whilst still being in turning speed
                         _, dist = kwikqdrdist(
@@ -909,7 +912,6 @@ class JasonCD(ConflictDetection):
                         # Total time
                         time_diff = cruise_time + accel_time + turn_time
                         time += time_diff
-
                         start_turn = False
                         current_wp += 1
 
@@ -935,16 +937,16 @@ class JasonCD(ConflictDetection):
 
                         # Calculate the leg distance, acceleration distance and turning distance (total distance covered by turn)
                         accel_dist = distaccel(
-                            15 * kts, 5 * kts, bs.traf.perf.axmax[acidx]
+                            self.cruise_spd, 5 * kts, bs.traf.perf.axmax[acidx]
                         )
                         turning_dist = abs(2 * np.pi * turnrad * hdgchange / 360)
 
                         # Cruise distance
                         cruise_dist = dist - accel_dist - turndist
-                        cruise_time = cruise_dist / (15 * kts)
+                        cruise_time = cruise_dist / (self.cruise_spd)
 
                         # Deceleration time
-                        accel_time = abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                        accel_time = abs(self.cruise_spd - 5 * kts) / bs.traf.perf.axmax[acidx]
 
                         # Turn  time times half cuz only till current_wp
                         start_turn = True
@@ -963,10 +965,12 @@ class JasonCD(ConflictDetection):
                             acrte.wplon[current_wp],
                         )
                         dist = dist * nm
-                        time_diff = dist / (15 * kts)
+                        time_diff = dist / (self.cruise_spd)
                         time += time_diff
                         current_wp += 1
 
+
+                #print(f"current wp {current_wp -1}")
                 # --------------------------------------------------------------------------------------------------------------------------------------------------
                 # Position Calculations
                 if floor_div < time // measurement_freq:
@@ -1065,10 +1069,10 @@ class JasonCD(ConflictDetection):
                             )
 
                             accel_dist = distaccel(
-                                15 * kts, 5 * kts, bs.traf.perf.axmax[acidx]
+                                self.cruise_spd, 5 * kts, bs.traf.perf.axmax[acidx]
                             )
                             accel_time = (
-                                abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                                abs(self.cruise_spd - 5 * kts) / bs.traf.perf.axmax[acidx]
                             )
 
                             # Ends in deceleration part before turn
@@ -1095,7 +1099,7 @@ class JasonCD(ConflictDetection):
                             # Ends in cruise part before turn
                             else:
                                 remaining_time = overshoot_time - accel_time
-                                overshoot_dist = accel_dist + remaining_time * 15 * kts
+                                overshoot_dist = accel_dist + remaining_time * self.cruise_spd
                                 bearing, _ = kwikqdrdist(
                                     acrte.wplat[current_wp - 1],
                                     acrte.wplon[current_wp - 1],
@@ -1129,21 +1133,21 @@ class JasonCD(ConflictDetection):
                             )
 
                             accel_dist = distaccel(
-                                15 * kts, 5 * kts, bs.traf.perf.axmax[acidx]
+                                self.cruise_spd, 5 * kts, bs.traf.perf.axmax[acidx]
                             )
                             accel_time = (
-                                abs(15 * kts - 5 * kts) / bs.traf.perf.axmax[acidx]
+                                abs(self.cruise_spd - 5 * kts) / bs.traf.perf.axmax[acidx]
                             )
 
                             cruise_dist = leg_dist - turndist - accel_dist
-                            cruise_time = cruise_dist / 5 * kts
-
+                            cruise_time = cruise_dist / (5 * kts)
+                            
                             if overshoot_time < accel_time:
                                 overshoot_dist = (
                                     -0.5
                                     * bs.traf.perf.axmax[acidx]
                                     * (overshoot_time) ** 2
-                                    + 15 * kts * overshoot_time
+                                    + self.cruise_spd * overshoot_time
                                 )
                                 bearing, _ = kwikqdrdist(
                                     acrte.wplat[current_wp - 1],
@@ -1179,7 +1183,7 @@ class JasonCD(ConflictDetection):
                                 final_lon = acrte.wplon[current_wp - 2]
 
                         else:
-                            overshoot_dist = overshoot_time * 15 * kts
+                            overshoot_dist = overshoot_time * self.cruise_spd
                             if (
                                 acrte.wplat[current_wp - 1]
                                 == acrte.wplat[current_wp - 2]
@@ -1206,7 +1210,7 @@ class JasonCD(ConflictDetection):
 
                         # Data record
                         array_measurement.append(
-                            [acid, floor_div, final_lat, final_lon]
+                            [acid, floor_div, final_lat, final_lon, current_wp -1]
                         )
                         i += 1
                 try:
@@ -1217,15 +1221,17 @@ class JasonCD(ConflictDetection):
         #print("---------------------------------------------------------------------------------")
         confpairs = []
         confinfo = []
-        df = pd.DataFrame(array_measurement, columns=["acid", "part", "lat", "lon"])
+        df = pd.DataFrame(array_measurement, columns=["acid", "part", "lat", "lon", "waypoint"])
 
-        # if self.plot_toggle:
-        #    plt.scatter(
-        #        df.lat,
-        #        df.lon,
-        #        color="blue",
-        #        label=f"{df.acid}",
-        #    )
+        #if self.plot_toggle:
+        #    for i in range(len(df)):
+        #        plt.scatter(
+        #            df.iloc[i].lon,
+        #            df.iloc[i].lat,
+        #            color="blue",
+        #            label=f"{df.acid}",
+        #        )
+        #        plt.text(df.iloc[i].lon, df.iloc[i].lat, str(i))
         #    plt.show()
 
         try:
@@ -1245,19 +1251,56 @@ class JasonCD(ConflictDetection):
                 I = np.eye(len(df[df["part"] == i]["acid"].unique()))
                 qdr = np.asarray(qdr)
                 dist = np.asarray(dist) * nm + 1e9 * I
-
                 conflicts = np.column_stack(np.where(dist < rpz))
                 for pair in conflicts:
-                    conflictpair = (
-                        df[df["part"] == i].acid.unique()[pair[0]],
-                        df[df["part"] == i].acid.unique()[pair[1]],
-                    )
+                    #print(pair)
+                    #print(df[df["part"] == i].acid.unique())
+                    #print(len(df[df["part"] == i].acid.unique()))
+                    #print("------------------------------------------------------------------------------------------")
+                    conflictpair = (df[df["part"] == i].acid.unique()[pair[0]], df[df["part"] == i].acid.unique()[pair[1]])
+                    
                     if conflictpair not in confpairs:
-                        confpairs.append(conflictpair)
-                        confinfo.append([conflictpair, i])
+                        coords1 = []
+                        coords2 = []
+                        acrte1 = Route._routes.get(conflictpair[0])
+                        acrte2 = Route._routes.get(conflictpair[1])
+                        waypoint1 = int(df[(df["acid"] == conflictpair[0]) & (df["part"] == i)].waypoint)
+                        waypoint2 = int(df[(df["acid"] == conflictpair[1]) & (df["part"] == i)].waypoint)
+
+                        for j in range(10):
+                            try:
+                                acrte1.wplat[waypoint1 +j]
+                            except:
+                                pass
+                            else:
+                                coords1.append((acrte1.wplat[waypoint1 +j], acrte1.wplon[waypoint1 +j]))
+                                
+                            try:
+                                acrte2.wplat[waypoint2 +j]
+                            except:
+                                pass
+                            else:
+                                coords2.append((acrte2.wplat[waypoint2 +j], acrte2.wplon[waypoint2 +j]))
+                        
+                        if len(coords1) >1:
+                            linestring1 = sh.LineString(coords1)
+                        
+                        else:
+                            linestring1 = sh.Point(coords1)
+                            
+                        if len(coords2) >1:
+                            linestring2 = sh.LineString(coords2)
+                        else:
+                            linestring2 = sh.Point(coords2)
+
+
+                        if not sh.distance(linestring1, linestring2) > 0:
+                            confpairs.append(conflictpair)
+                            confinfo.append([conflictpair, i, waypoint1, waypoint2])
 
         # Conflict Pairs
-        bs.scr.echo(f"{confpairs}")
+        if confpairs:
+            bs.scr.echo(f"{confpairs}")
         self.confpairs = confpairs
 
         # Conflict plot
@@ -1267,27 +1310,28 @@ class JasonCD(ConflictDetection):
                 if entry[0] and entry[1] in done_pairs:
                     continue
                 done_pairs.append(entry[0])
+                
                 done_pairs.append(entry[1])
                 timer = 0
                 fig = plt.figure()
                 ax = fig.add_subplot()
                 plt.scatter(
-                    df[df["acid"] == entry[0]].lat,
                     df[df["acid"] == entry[0]].lon,
+                    df[df["acid"] == entry[0]].lat,
                     color="blue",
                     label=f"{entry[0]}",
                 )
                 plt.scatter(
-                    df[df["acid"] == entry[1]].lat,
                     df[df["acid"] == entry[1]].lon,
+                    df[df["acid"] == entry[1]].lat,
                     color="red",
                     label=f"{entry[1]}",
                 )
                 for coords in zip(
-                    df[df["acid"] == entry[0]].lat,
                     df[df["acid"] == entry[0]].lon,
-                    df[df["acid"] == entry[1]].lat,
+                    df[df["acid"] == entry[0]].lat,
                     df[df["acid"] == entry[1]].lon,
+                    df[df["acid"] == entry[1]].lat
                 ):
                     ax.add_patch(
                         Circle(
