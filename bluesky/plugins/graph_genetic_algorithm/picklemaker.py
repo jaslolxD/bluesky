@@ -1,14 +1,17 @@
 import osmnx as ox
 import pickle
 import numpy as np
+import geopandas as gpd
 import networkx as nx
 from shapely.ops import linemerge
 from multiprocessing import Pool
 import random
+import tqdm
 import os
 from os.path import exists
 import tqdm
 import matplotlib.pyplot as plt
+from multiprocessing import Pool
 
 nm  = 1852. 
 
@@ -30,41 +33,71 @@ def kwikqdrdist(lata, lona, latb, lonb):
     return qdr, dist
 
 random.seed(0)
-G = ox.load_graphml(filepath=r"C:\Users\Jason\Documents\Thesis\Network data\G_final2.graphml")
-nodes, edges = ox.graph_to_gdfs(G)
+nodes = gpd.read_file("bluesky/plugins/graph_genetic_algorithm/gen_directed.gpkg", layer = 'nodes')
+edges = gpd.read_file("bluesky/plugins/graph_genetic_algorithm/gen_directed.gpkg", layer = 'edges')
+edges.set_index(['u', 'v', 'key'], inplace=True)
+nodes.set_index(['osmid'], inplace=True)
+
+# ensure that it has the correct value
+nodes['x'] = nodes['geometry'].apply(lambda x: x.x)
+nodes['y'] = nodes['geometry'].apply(lambda x: x.y)
+G = ox.graph_from_gdfs(nodes, edges)
 
 
 def generate_nodes(G):
-    added_nodes = [] 
-    coords = []
+    added_orig_nodes = [] 
+    added_dest_nodes = []
 
-    while len(added_nodes) < 100:
+    while len(added_orig_nodes) < 200:
         node = random.choice(list(G.nodes))
         node_lat = G.nodes[node]["y"]
         node_lon = G.nodes[node]["x"]
         node_too_close = False
         
-        for node_entry in added_nodes:
+        if node in added_orig_nodes:
+            continue
+        
+        for node_entry in added_orig_nodes:
             added_node_lat = G.nodes[node_entry]["y"]
             added_node_lon = G.nodes[node_entry]["x"]
             _, dist = kwikqdrdist(node_lat, node_lon, added_node_lat, added_node_lon)
             dist = dist * nm
             
-            if dist <5000:
+            if dist < 500:
                 node_too_close = True
                 break
 
         if not node_too_close:
-            added_nodes.append(node)
-            coords.append([node_lon, node_lat])
+            added_orig_nodes.append(node)
+    
+    while len(added_dest_nodes) < 200:
+        node = random.choice(list(G.nodes))
+        node_lat = G.nodes[node]["y"]
+        node_lon = G.nodes[node]["x"]
+        node_too_close = False
+        
+        if node in added_orig_nodes or node in added_dest_nodes:
+            continue
+        
+        for node_entry in added_dest_nodes:
+            added_node_lat = G.nodes[node_entry]["y"]
+            added_node_lon = G.nodes[node_entry]["x"]
+            _, dist = kwikqdrdist(node_lat, node_lon, added_node_lat, added_node_lon)
+            dist = dist * nm
+            
+            if dist < 500:
+                node_too_close = True
+                break
 
-    return added_nodes
+        if not node_too_close:
+            added_dest_nodes.append(node)
 
-def generate_route_pickle(origin, destination):
+    return added_orig_nodes, added_dest_nodes
+
+def generate_route_pickle(input):
+    origin, destination = input
     _ , dist = kwikqdrdist(G.nodes[origin]["y"], G.nodes[origin]["x"], G.nodes[destination]["y"], G.nodes[destination]["x"])
     dist *= nm
-    if exists(f'C:/Coding/bluesky/bluesky/plugins/graph_genetic_algorithm/pickles/{origin}-{destination}.pkl'):
-        return
         
     if dist > 5000:
         try:
@@ -104,54 +137,21 @@ def generate_route_pickle(origin, destination):
     else: 
         return
     
-    with open(f'C:/Coding/bluesky_fork2/bluesky/plugins/graph_genetic_algorithm/pickles/{origin}-{destination}.pkl' , 'wb') as f:
+    with open(f'bluesky/plugins/graph_genetic_algorithm/pickles/{origin}-{destination}.pkl' , 'wb') as f:
         pickle.dump(route_pickle, f)
     return route_pickle
 
 def main():
-    added_nodes = generate_nodes(G)
-    print(added_nodes)
-    for origin in added_nodes:
-        for destination in added_nodes:
-            if origin == destination:
-                continue
-            else:
-                generate_route_pickle(origin, destination)
-                
-    #generate_route_pickle(42431508, 42454758)
+    input_arr = []
+    added_orig_nodes, added_dest_nodes = generate_nodes(G)
+    for origin in added_orig_nodes:
+        for destination in added_dest_nodes:
+            input_arr.append((origin, destination))
+            #generate_route_pickle(origin, destination)
+            
+    with Pool(4) as p:
+        _ = list(tqdm.tqdm(p.imap(generate_route_pickle, input_arr), total = len(input_arr)))
 
 
 if __name__ == "__main__":
     main()
-    
-
-
-
-
-
-
-            
-#node_list = generate_nodes(G)
-
-
-
-
-
-
-
-#node_df = nodes.loc[node_list]
-#
-#node_df.plot(   figsize=(15, 15),
-#                cmap="viridis",
-#                linewidth=.5,
-#                scheme="headtailbreaks",
-#                legend= True
-#               ).set_axis_off()
-#
-#plt.show()
-
-
-    
-
-
-

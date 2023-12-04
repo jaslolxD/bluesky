@@ -5,6 +5,9 @@ scenario/ic.scn
 bluesky/resources/grib
 bluesky/resources/netcdf
 
+#pickles
+bluesky/plugins/graph_genetic_algorithm/pickles/*
+
 # Potentially locally-copied BADA installation
 bluesky/resources/performance/BADA/*
 !bluesky/resources/performance/BADA/README.md

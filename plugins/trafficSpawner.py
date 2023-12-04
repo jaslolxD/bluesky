@@ -68,7 +68,7 @@ class trafficSpawner(Entity):
     @timed_function(dt=1)
     def spawn(self):
         routes = os.listdir(
-            f"C:/Coding/bluesky_fork2/bluesky/plugins/graph_genetic_algorithm/pickles"
+            f"bluesky/plugins/graph_genetic_algorithm/pickles"
         )
         # random.seed(1)
         while bs.traf.ntraf < self.target_ntraf:
@@ -78,7 +78,7 @@ class trafficSpawner(Entity):
             filename = routes[route_entry]
             #filename = "3582-2692.pkl"
             route = pd.read_pickle(
-                f"C:/Coding/bluesky_fork2/bluesky/plugins/graph_genetic_algorithm/pickles/{filename}"
+                f"bluesky/plugins/graph_genetic_algorithm/pickles/{filename}"
             )
             lats, lons = zip(*route)
             dist = kwikdist_matrix(
