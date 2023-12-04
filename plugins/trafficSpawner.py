@@ -6,6 +6,7 @@ from bluesky.stack import command
 from bluesky.tools.aero import kts, ft, nm, fpm
 from bluesky.tools.geo import kwikqdrdist, kwikpos, kwikdist, kwikdist_matrix
 from bluesky.tools.misc import degto180
+from shapely.geometry import LineString
 import osmnx as ox
 import networkx as nx
 import geopandas as gpd
@@ -284,6 +285,8 @@ class trafficSpawner(Entity):
             if (pair[0] in bs.traf.id) and (pair[1] in bs.traf.id):
                 idx1 = bs.traf.id.index(pair[0])
                 idx2 = bs.traf.id.index(pair[1])
+                # Check if the routes of these two aircraft intersect
+                intersects = self.route_intersect(idx1, idx2)
                 # Calculate current distance between them [m]
                 losdistance = (
                     kwikdist(
@@ -312,6 +315,7 @@ class trafficSpawner(Entity):
                         bs.traf.alt[idx2],
                         bs.sim.simt,
                         bs.sim.simt,
+                        intersects
                     ]
                     # This guy here                             ^ is the LOS start time
                 else:
@@ -328,6 +332,7 @@ class trafficSpawner(Entity):
                             bs.traf.alt[idx2],
                             bs.sim.simt,
                             self.losmindist[dictkey][8],
+                            intersects
                         ]
 
         # Log data if there are aircraft that are no longer in LOS
@@ -360,6 +365,7 @@ class trafficSpawner(Entity):
                     losdata[5],
                     losdata[6],
                     losdata[0],
+                    losdata[-1]
                 )
 
         self.prevlospairs = set(bs.traf.cd.lospairs)
@@ -385,7 +391,59 @@ class trafficSpawner(Entity):
             self.create_time = np.array([])
 
         return
-
+    
+    def route_intersect(self, idx1, idx2):
+        # Get the clipped routes
+        clip1 = self.clip_route(idx1, 100, 100)
+        clip2 = self.clip_route(idx2, 100, 100)
+        print(clip1)
+        print(clip2)
+        # Get shapely lines
+        line1 = LineString(clip1)
+        line2 = LineString(clip2)
+        print(line1.intersects(line2))
+        return line1.intersects(line2)
+            
+    def clip_route(self, idx, dist_front, dist_back):
+        route = bs.traf.ap.route[idx]
+        i = route.iactwp
+        currentwp = (bs.traf.lat[idx], bs.traf.lon[idx])
+        front_wp_list = []
+        back_wp_list = []
+        dist = 0
+        while dist < dist_back:
+            if i == 0:
+                break
+            # Now, get previous wp
+            prevwp = (route.wplat[i-1], route.wplon[i-1])
+            # Get the distance
+            dist += kwikdist(currentwp[0], currentwp[1], prevwp[0], prevwp[1]) * nm
+            # Add wp
+            back_wp_list.append((prevwp[1], prevwp[0]))
+            # Set new wp
+            i -= 1
+            currentwp = prevwp
+        # Reverse
+        back_wp_list.reverse()
+        # front
+        i = route.iactwp
+        dist = 0
+        currentwp = (bs.traf.lat[idx], bs.traf.lon[idx])
+        while dist < dist_front:
+            if i == len(route.wplat)-1:
+                break
+            # Now, get next wp
+            nextwp = (route.wplat[i+1], route.wplon[i+1])
+            # Get the distance
+            dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm
+            # Add wp
+            front_wp_list.append((nextwp[1], nextwp[0]))
+            # Set new wp
+            i += 1
+            currentwp = nextwp
+            
+        # Put the list together
+        return back_wp_list + [(bs.traf.lon[idx], bs.traf.lat[idx])] + front_wp_list
 
 
 def distaccel(v0, v1, axabs):
