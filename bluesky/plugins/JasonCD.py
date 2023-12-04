@@ -1263,7 +1263,7 @@ class JasonCD(ConflictDetection):
                     conflictpair = (df[df["part"] == i].acid.unique()[pair[0]], df[df["part"] == i].acid.unique()[pair[1]])
                     7 ,25-26
                     if conflictpair not in confpairs:
-                        bs.scr.echo(f"{conflictpair}")
+                        #bs.scr.echo(f"{conflictpair}")
                         coords1 = []
                         coords2 = []
                         acrte1 = Route._routes.get(conflictpair[0])
