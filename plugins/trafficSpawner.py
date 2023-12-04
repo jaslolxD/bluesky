@@ -22,9 +22,6 @@ def init_plugin():
     config = {"plugin_name": "TRAFFICSPAWNER", "plugin_type": "sim", "reset": reset}
     # Put TrafficSpawner in bs.traf
     bs.traf.TrafficSpawner = trafficSpawner()
-    bs.stack.stack(f"SCHEDULE 00:00:00 PAN 40.776676,-73.971321")
-    bs.stack.stack(f"SCHEDULE 00:00:00 ZOOM 5")
-    print("hi init")
     return config
 
 
@@ -86,7 +83,7 @@ class trafficSpawner(Entity):
             )
             dist = dist * nm
 
-            if np.any(dist < 500):
+            if np.any(dist < 64):
                 #print("TOO CLOSE")
                 #bs.scr.echo("TOO CLOSE")
                 continue
@@ -100,7 +97,7 @@ class trafficSpawner(Entity):
             bs.traf.cre(acid, actype, lats[0], lons[0], achdg, self.traf_alt, 20 * kts)
             acrte = Route._routes.get(acid)
             acidx = bs.traf.id.index(acid)
-            bs.scr.echo(f"spawning")
+            #bs.scr.echo(f"spawning")
             lastwp = []
             for i in range(len(route)):
                 if i == len(route) - 1:
@@ -175,7 +172,7 @@ class trafficSpawner(Entity):
         try:
             bs.traf.id
         except:
-            bs.scr.echo("this doesnt work")
+            #bs.scr.echo("this doesnt work")
             return
         else:
             acids = bs.traf.id
@@ -185,14 +182,14 @@ class trafficSpawner(Entity):
             acidx = bs.traf.id2idx(acid)
             acrte = Route._routes.get(acid)
 
-            bs.scr.echo(f" lat: {bs.traf.lat[acidx]} lon: {bs.traf.lon[acidx]}")
+            #bs.scr.echo(f" lat: {bs.traf.lat[acidx]} lon: {bs.traf.lon[acidx]}")
 
         stack.stack("HOLD")
         
     @command
     def trafficnumber(self, target_traf = 50):
         self.target_ntraf = int(target_traf)
-        bs.scr.echo(f"Traffic number has been set to {int(target_traf)}")
+        #bs.scr.echo(f"Traffic number has been set to {int(target_traf)}")
         return
         
         

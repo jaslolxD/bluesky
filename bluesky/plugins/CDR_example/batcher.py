@@ -17,12 +17,12 @@ for density in traffic_densities:
         f.write(f"00:00:01>FF")
         
         f_state = open(rf"C:\Coding\bluesky_fork2\scenario\batches\scenarios\{fileheader_state}_{seed}_{density}.scn","w")
-        f.write(f"00:00:00>trafficnumber {density} \n")
-        f.write(f"00:00:00>SEED {seed} \n")
-        f.write(f"00:00:00>cdmethod SBCD \n")
-        f.write(f"00:00:00>reso SBCR \n")
-        f.write(f"00:00:00>startlogs \n")
-        f.write(f"00:00:01>FF")
+        f_state.write(f"00:00:00>trafficnumber {density} \n")
+        f_state.write(f"00:00:00>SEED {seed} \n")
+        f_state.write(f"00:00:00>cdmethod SBCD \n")
+        f_state.write(f"00:00:00>reso SBCR \n")
+        f_state.write(f"00:00:00>startlogs \n")
+        f_state.write(f"00:00:01>FF")
         
         
         

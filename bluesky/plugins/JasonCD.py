@@ -177,7 +177,7 @@ class JasonCD(ConflictDetection):
         try:
             bs.traf.id
         except:
-            bs.scr.echo("this doesnt work")
+            #bs.scr.echo("this doesnt work")
             return
         else:
             acids = bs.traf.id
@@ -1239,7 +1239,8 @@ class JasonCD(ConflictDetection):
         try:
             parts = max(df["part"])
         except:
-            print("No more tings")
+            #print("No more tings")
+            pass
         else:
             parts = max(df["part"])
 
@@ -1301,8 +1302,8 @@ class JasonCD(ConflictDetection):
                             confinfo.append([conflictpair, i, waypoint1, waypoint2])
 
         # Conflict Pairs
-        if confpairs:
-            bs.scr.echo(f"{confpairs}")
+        #if confpairs:
+        #    bs.scr.echo(f"{confpairs}")
         self.confpairs = confpairs
 
         # Conflict plot
