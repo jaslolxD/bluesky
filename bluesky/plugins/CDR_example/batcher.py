@@ -5,7 +5,7 @@ filelist = []
 
 for density in traffic_densities:
     for seed in range(n_scenarios):
-        f = open(rf"C:\Coding\bluesky_fork2\scenario\scenarios\{fileheader}_{seed}_{density}.scn","w")
+        f = open(rf"C:\Coding\bluesky_fork2\scenario\batches\scenarios\{fileheader}_{seed}_{density}.scn","w")
         
         f.write(f"00:00:00>trafficnumber {density} \n")
         f.write(f"00:00:00>SEED {seed} \n")
@@ -15,12 +15,12 @@ for density in traffic_densities:
         f.write(f"00:00:01>FF")
         filelist.append(f"{fileheader}_{seed}_{density}")
         
-f_bat = open(rf"C:\Coding\bluesky_fork2\bluesky\plugins\batches\batch.scn","w")
+f_bat = open(rf"C:\Coding\bluesky_fork2\scenario\batch.scn","w")
 for file in filelist:
-    f_bat.write(f"00:00:00>SCEN {file} \n")
-    f_bat.write(f"00:00:00>PCALL batches\scenarios\{file}.scn \n")
-    f_bat.write(f"00:00:00>SCHEDULE 02:00:00 HOLD \n")
-    f_bat.write(f"00:00:00>FF \n \n")
+    f_bat.write(f"00:00:00.00>SCEN {file} \n")
+    f_bat.write(f"00:00:00.00>PCALL batches\scenarios\{file}.scn \n")
+    f_bat.write(f"00:00:00>SCHEDULE 00:30:00 HOLD \n")
+    f_bat.write(f"00:00:00.00>FF \n \n")
 
     
         
