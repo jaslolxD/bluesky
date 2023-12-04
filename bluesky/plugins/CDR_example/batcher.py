@@ -32,7 +32,7 @@ for density in traffic_densities:
 f_bat = open(rf"C:\Coding\bluesky_fork2\scenario\batch.scn","w")
 for file in filelist:
     f_bat.write(f"00:00:00.00>SCEN {file} \n")
-    f_bat.write(f"00:00:00.00>PCALL batches\scenarios\{file}.scn \n")
+    f_bat.write(f"00:00:00.00>PCALL batches/scenarios/{file}.scn \n")
     f_bat.write(f"00:00:00>SCHEDULE 01:00:00 HOLD \n")
     f_bat.write(f"00:00:00.00>FF \n \n")
 
