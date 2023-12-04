@@ -30,6 +30,10 @@ class JasonCR(ConflictResolution):
         super().__init__()
         self.apdict = dict()
         
+    def reset(self):
+        super().reset()
+        self.apdict = dict()
+        
       # Some helper functions
     def norm_sq(self, x):
         return np.dot(x, x)

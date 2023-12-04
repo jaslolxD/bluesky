@@ -63,9 +63,6 @@ class JasonCD(ConflictDetection):
     def __init__(self):
         super().__init__()
         # New detection parameters
-        self.predicted_waypoints = []  # Predicted list of waypoints
-        self.qdr_mat = np.array([])  # QDR for all aircraft
-        self.dist_mat = np.array([])  # Distance for all aircraft
         self.dtlookahead_def = 30
         self.measurement_freq = 3
         self.rpz_def = 50
@@ -95,20 +92,25 @@ class JasonCD(ConflictDetection):
     def reset(self):
         super().reset()
         # Reset the things
-        self.predicted_waypoints = []  # Predicted list of waypoints
-        self.qdr_mat = np.array([])  # QDR for all aircraft
-        self.dist_mat = np.array([])  # Distance for all aircraft
+        self.dtlookahead_def = 30
+        self.measurement_freq = 3
+        self.rpz_def = 50
+        self.plot_toggle = False
+        self.df = []
+        self.confinfo = []
+        self.cruise_spd = 20 * kts
+
+        # Logging
+        self.conflictlog = datalog.crelog("CDR_CONFLICTLOG", None, confheader)
+        self.uniqueconfloslog = datalog.crelog(
+            "CDR_WASLOSLOG", None, uniqueconflosheader
+        )
 
         # Conflict related
-
         self.prevconfpairs = set()
-
         self.prevlospairs = set()
-
         self.unique_conf_dict = dict()
-
         self.counter2id = dict()  # Keep track of the other way around
-
         self.unique_conf_id_counter = 0  # Start from 0, go up
 
     def clearconfdb(self):

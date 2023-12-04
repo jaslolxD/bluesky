@@ -35,12 +35,9 @@ def reset():
 class trafficSpawner(Entity):
     def __init__(self):
         super().__init__()
-        self.graph, self.nodes, self.edges = self.loadCity()
         self.target_ntraf = 50
         self.traf_id = 1
-        self.traf_spd = 10
         self.traf_alt = 100 * ft
-        random.seed(1)
 
         # Logging related stuff
         self.prevconfpairs = set()
@@ -58,19 +55,6 @@ class trafficSpawner(Entity):
             self.create_time = np.array([])
 
         return
-
-    def loadCity(self):
-        graph = ox.load_graphml(
-            filepath=r"C:\Users\Jason\Documents\Thesis\Network data\G_final.graphml"
-        )
-        nodes, edges = ox.graph_to_gdfs(graph)
-        return graph, nodes, edges
-
-    def loadRoutes(self):
-        routes = os.listdir(
-            f"C:/Coding/bluesky/bluesky/plugins/graph_genetic_algorithm/pickles"
-        )
-        return routes
 
     def create(self, n=1):
         super().create(n)
@@ -204,6 +188,14 @@ class trafficSpawner(Entity):
             bs.scr.echo(f" lat: {bs.traf.lat[acidx]} lon: {bs.traf.lon[acidx]}")
 
         stack.stack("HOLD")
+        
+        
+    def trafficnumber(self, target_traf = 50):
+        self.target_ntraf = int(target_traf)
+        bs.scr.echo(f"Traffic number has been set to {int(target_traf)}")
+        return
+        
+        
 
     @timed_function(dt=0.5)
     def delete_aircraft(self):
@@ -376,38 +368,27 @@ class trafficSpawner(Entity):
         self.prevlospairs = set(bs.traf.cd.lospairs)
 
     def reset(self):
-        self.graph, self.nodes, self.edges = self.loadCity()
-        self.target_ntraf = 1
+        self.target_ntraf = 50
         self.traf_id = 1
-        self.traf_spd = 20
         self.traf_alt = 100 * ft
 
         # Logging related stuff
-
         self.prevconfpairs = set()
-
         self.prevlospairs = set()
-
         self.confinside_all = 0
-
         self.deleted_aircraft = 0
-
         self.losmindist = dict()
 
         with self.settrafarrays():
             self.route_edges = []
-
             # Metrics
-
             self.distance2D = np.array([])
-
             self.distance3D = np.array([])
-
             self.distancealt = np.array([])
-
             self.create_time = np.array([])
 
         return
+
 
 
 def distaccel(v0, v1, axabs):
