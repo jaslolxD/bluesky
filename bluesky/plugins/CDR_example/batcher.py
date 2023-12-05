@@ -1,5 +1,5 @@
-n_scenarios = 5
-traffic_densities = [40, 60, 80, 100]
+n_scenarios = 10
+traffic_densities = [40, 60, 80, 100, 120, 140]
 fileheader_cdr = "CDR_TRAJ_PRED"
 fileheader_state = "CDR_STATE"
 
