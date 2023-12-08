@@ -169,6 +169,7 @@ class trafficSpawner(Entity):
             stack.stack(f"DIRECT {acid} WP0")
             stack.stack(f"LNAV {acid} ON")
             stack.stack(f"VNAV {acid} ON")
+            self.create_time[acidx] = bs.sim.simt
 
     # @timed_function(dt = 10)
     def printer(self):
