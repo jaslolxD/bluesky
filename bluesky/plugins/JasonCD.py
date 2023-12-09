@@ -197,7 +197,7 @@ class JasonCD(ConflictDetection):
             start_turn = False
             floor_div = 0
             rpz = 50
-            while time < 30:
+            while time < self.dtlookahead_def:
                 if first_run == True:
                     _, dist = kwikqdrdist(
                         bs.traf.lat[acidx],
@@ -978,7 +978,7 @@ class JasonCD(ConflictDetection):
                 if floor_div < time // measurement_freq:
                     i = 0
                     value = int(time // measurement_freq) - floor_div
-                    while i < value and floor_div < dtlookahead / measurement_freq:
+                    while i < value and floor_div < self.dtlookahead_def / measurement_freq:
                         floor_div += 1
                         overshoot_time = time - floor_div * measurement_freq
 
@@ -1548,6 +1548,11 @@ class JasonCD(ConflictDetection):
             qdr,
             dist,
         )
+        
+    @command
+    def setlookahead(self,lookaheadtime):
+        self.dtlookahead_def = int(lookaheadtime)
+        return
 
     def update_log(self):
         """Here, we are logging the information for current conflicts as well as
