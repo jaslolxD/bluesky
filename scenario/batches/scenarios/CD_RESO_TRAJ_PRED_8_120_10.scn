@@ -1,0 +1,7 @@
+00:00:00>trafficnumber 120 
+00:00:00>SEED 8 
+00:00:00>setlookahead 10 
+00:00:00>cdmethod jasoncd 
+00:00:00>reso jasoncr 
+00:00:00>startlogs 
+00:00:01>FF

@@ -64,7 +64,7 @@ class JasonCD(ConflictDetection):
         super().__init__()
         # New detection parameters
         self.dtlookahead_def = 30
-        self.measurement_freq = 3
+        self.measurement_freq = 2
         self.rpz_def = 50
         self.plot_toggle = False
         self.df = []
