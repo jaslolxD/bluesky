@@ -48,47 +48,48 @@ def generate_nodes(G):
     added_orig_nodes = [] 
     added_dest_nodes = []
 
-    while len(added_orig_nodes) < 120:
+    while len(added_orig_nodes) < 200:
         node = random.choice(list(G.nodes))
         node_lat = G.nodes[node]["y"]
         node_lon = G.nodes[node]["x"]
         node_too_close = False
+        added_node_lats = []
+        added_node_lons = []
         
         if node in added_orig_nodes:
             continue
+        _, dist = kwikqdrdist(node_lat, node_lon, added_node_lats, added_node_lons)
         
-        for node_entry in added_orig_nodes:
-            added_node_lat = G.nodes[node_entry]["y"]
-            added_node_lon = G.nodes[node_entry]["x"]
-            _, dist = kwikqdrdist(node_lat, node_lon, added_node_lat, added_node_lon)
-            
-            if dist < 500:
-                node_too_close = True
-                break
+        if np.any(dist < 500):
+            node_too_close = True
+            break
 
         if not node_too_close:
             added_orig_nodes.append(node)
+            added_node_lats.append(G.nodes[node]["y"])
+            added_node_lons.append(G.nodes[node]["x"])
     
-    while len(added_dest_nodes) < 120:
+    while len(added_dest_nodes) < 200:
         node = random.choice(list(G.nodes))
         node_lat = G.nodes[node]["y"]
         node_lon = G.nodes[node]["x"]
+        added_node_lats = []
+        added_node_lons = []
         node_too_close = False
         
         if node in added_orig_nodes or node in added_dest_nodes:
             continue
         
-        for node_entry in added_dest_nodes:
-            added_node_lat = G.nodes[node_entry]["y"]
-            added_node_lon = G.nodes[node_entry]["x"]
-            _, dist = kwikqdrdist(node_lat, node_lon, added_node_lat, added_node_lon)
-            
-            if dist < 500:
-                node_too_close = True
-                break
+        _, dist = kwikqdrdist(node_lat, node_lon, added_node_lats, added_node_lons)
+        
+        if np.any(dist < 500):
+            node_too_close = True
+            break
 
         if not node_too_close:
             added_dest_nodes.append(node)
+            added_node_lats.append(G.nodes[node]["y"])
+            added_node_lons.append(G.nodes[node]["x"])
 
     return added_orig_nodes, added_dest_nodes
 
