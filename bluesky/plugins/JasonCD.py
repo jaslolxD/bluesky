@@ -1263,6 +1263,8 @@ class JasonCD(ConflictDetection):
                     #print("------------------------------------------------------------------------------------------")
                     conflictpair = (df[df["part"] == i].acid.unique()[pair[0]], df[df["part"] == i].acid.unique()[pair[1]])
                     if conflictpair not in confpairs:
+                        #if conflictpair == ("DR34", "DR53"):
+                        #    print("already detected")
                         #bs.scr.echo(f"{conflictpair}")
                         coords1 = []
                         coords2 = []
@@ -1314,21 +1316,6 @@ class JasonCD(ConflictDetection):
                             # Set new wp
                             j += 1
                             currentwp = nextwp
-
-                        #for j in range(10):
-                        #    try:
-                        #        acrte1.wplat[waypoint1 +j]
-                        #    except:
-                        #        pass
-                        #    else:
-                        #        coords1.append((acrte1.wplat[waypoint1 +j], acrte1.wplon[waypoint1 +j]))
-                        #        
-                        #    try:
-                        #        acrte2.wplat[waypoint2 +j]
-                        #    except:
-                        #        pass
-                        #    else:
-                        #        coords2.append((acrte2.wplat[waypoint2 +j], acrte2.wplon[waypoint2 +j]))
                         
                         if len(coords1) >1:
                             linestring1 = sh.LineString(coords1)
@@ -1343,6 +1330,12 @@ class JasonCD(ConflictDetection):
 
                         #bs.scr.echo(f"distance {linestring1.intersects(linestring2)}")
                         #print(linestring1.intersects(linestring2))
+                        #if conflictpair == ("DR34", "DR53"):
+                        #    for i in range(len(coords2)):
+                        #        if coords2[i] in coords1:
+                        #            print("its in there")
+                        #            print(linestring1.intersects(linestring2))
+                        
                         if linestring1.intersects(linestring2):
                             confpairs.append(conflictpair)
                             confinfo.append([conflictpair, i, waypoint1, waypoint2])

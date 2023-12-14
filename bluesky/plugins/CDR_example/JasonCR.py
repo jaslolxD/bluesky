@@ -54,7 +54,10 @@ class JasonCR(ConflictResolution):
         newtrack = np.copy(ownship.ap.trk)
         
         # Get initial list of speeds
-        speed_to_set = [[x] for x in bs.traf.gs]
+        #speed_to_set = [[x] for x in bs.traf.gs]
+        speed_to_set = [[x] for x in newgs]
+        random_idx = bs.traf.id2idx("DR53")
+        print(f"Initial speeds {speed_to_set[random_idx]}")
         
         # Get qdr
         qdr, _ = bs.tools.geo.kwikqdrdist_matrix(
@@ -102,9 +105,15 @@ class JasonCR(ConflictResolution):
             
             # Check if loss of separation
             #los = kwikdist(bs.traf.lat[ownship_idx], bs.traf.lon[ownship_idx], bs.traf.lat[intruder_idx], bs.traf.lon[intruder_idx]) * nm < bs.traf.cd.rpz_def
+            #if ownship_idx in (bs.traf.id2idx("DR34") ,bs.traf.id2idx("DR53")): 
+            #    print(entry[0][0],f"Front dist {front_dist}")
+            #    print(entry[0][0],f"Back dist {back_dist}")
+            
             
             if (front_dist < 1 and front_dist < back_dist) or intr_front_aligned:
                 speed_to_set[ownship_idx].append(bs.traf.gs[intruder_idx])
+                #if ownship_idx in (bs.traf.id2idx("DR34") ,bs.traf.id2idx("DR53")): 
+                #    print(entry[0][0],"Executed Back traffic")
                 continue
                 
             elif back_dist < 1 or intr_in_back:
@@ -118,25 +127,39 @@ class JasonCR(ConflictResolution):
             dist_ownship = self.calc_dist_to_wp_idx(ownship_idx, conf_wp_own_idx)
             dist_intruder = self.calc_dist_to_wp_idx(intruder_idx, conf_wp_intr_idx)
             
+            if ownship_idx in (bs.traf.id2idx("DR34") ,bs.traf.id2idx("DR53")): 
+                print(entry[0][0],f"Ownship dist {dist_ownship}")
+                print(entry[0][0],f"Intruder dist {dist_intruder}")
+
+            
             if dist_ownship < dist_intruder:
                 # We have priority
                 continue
             elif dist_ownship > dist_intruder:
                 # They have priority, stop, but only 60m from problem wp
                 speed_to_set[ownship_idx].append(0)
+                if ownship_idx in (bs.traf.id2idx("DR34") ,bs.traf.id2idx("DR53")): 
+                    print(entry[0][0],"Executed 2")
             else:
                 # Perfectly equal distance, use ACID
                 if ownship_idx > intruder_idx:
-                    bs.scr.echo(f"It happened 4 for {entry[0][0]}")
                     speed_to_set[ownship_idx].append(0)
-        
+                    if ownship_idx in (bs.traf.id2idx("DR34") ,bs.traf.id2idx("DR53")): 
+                        print(entry[0][0],"Executed 3")
+
         # Get the smallest commanded speed for each aircraft in conflict
         newgs = np.array([min(x) for x in speed_to_set])
+        for idx in ("DR34", "DR53"):
+        #    print(idx, newgs[bs.traf.id2idx(idx)])
+            print(idx, speed_to_set[bs.traf.id2idx(idx)])
+        print("---------------------------------")
         return newtrack, newgs, newvs, newalt
     
     def calc_dist_to_wp_idx(self, acidx, wpidx):
         # Calculates the distance from the current aircraft position to the specified wpidx in the future route.
         # Get the route
+        if acidx in (bs.traf.id2idx("DR34") ,bs.traf.id2idx("DR53")): 
+            print(bs.traf.id[acidx], wpidx)
         acrte = bs.traf.ap.route[acidx]
         iactwp = acrte.iactwp
         # Sanity check
@@ -273,6 +296,8 @@ class JasonCR(ConflictResolution):
                 intr_in_back = (qdr_intruder < -160 or 160 < qdr_intruder)
                 if intr_in_back or (idx1 > idx2 and bs.traf.gs[idx1] < 1 and bs.traf.gs[idx2] < 1):
                     # Set the speed to the autopilot one
+                    #if idx1 == bs.traf.id2idx("DR115"):
+                    #    print("executed")
                     self.tas[idx1] = bs.traf.ap.tas[idx1]
                     
             else:
