@@ -1285,7 +1285,7 @@ class JasonCD(ConflictDetection):
                                 break
                             nextwp = (acrte1.wplat[j+1], acrte1.wplon[j+1])
                             # Get the distance
-                            dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm
+                            conf_dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm
                             # Add wp
                             coords1.append((nextwp[1], nextwp[0]))
                             # Set new wp
@@ -1307,7 +1307,7 @@ class JasonCD(ConflictDetection):
                                 break
                             nextwp = (acrte2.wplat[j+1], acrte2.wplon[j+1])
                             # Get the distance
-                            dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm
+                            conf_dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm
                             # Add wp
                             coords2.append((nextwp[1], nextwp[0]))
                             # Set new wp
@@ -1422,6 +1422,7 @@ class JasonCD(ConflictDetection):
         lospairs = [(ownship.id[i], ownship.id[j]) for i, j in zip(*np.where(swlos))]
         # bs.scr.echo(f"{lospairs}")
         self.lospairs = lospairs
+        bs.scr.echo(f"{confpairs}")
 
         return confpairs, inconf, lospairs, df, confinfo
 
@@ -1692,3 +1693,44 @@ def distaccel(v0, v1, axabs):
 
 def finalVaccel(dist, v0, axabs):
     return np.sqrt(2*axabs*dist + v0**2)
+
+def clip_route(idx, dist_front, dist_back):
+        route = bs.traf.ap.route[idx]
+        i = route.iactwp
+        currentwp = (bs.traf.lat[idx], bs.traf.lon[idx])
+        front_wp_list = []
+        back_wp_list = []
+        dist = 0
+        while dist < dist_back:
+            if i == 0:
+                break
+            # Now, get previous wp
+            prevwp = (route.wplat[i-1], route.wplon[i-1])
+            # Get the distance
+            dist += kwikdist(currentwp[0], currentwp[1], prevwp[0], prevwp[1]) * nm
+            # Add wp
+            back_wp_list.append((prevwp[0], prevwp[1]))
+            # Set new wp
+            i -= 1
+            currentwp = prevwp
+        # Reverse
+        back_wp_list.reverse()
+        # front
+        i = route.iactwp
+        dist = 0
+        currentwp = (bs.traf.lat[idx], bs.traf.lon[idx])
+        while dist < dist_front:
+            if i >= len(route.wplat)-2:
+                break
+            # Now, get next wp
+            nextwp = (route.wplat[i+1], route.wplon[i+1])
+            # Get the distance
+            dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm
+            # Add wp
+            front_wp_list.append((nextwp[0], nextwp[1]))
+            # Set new wp
+            i += 1
+            currentwp = nextwp
+            
+        # Put the list together
+        return back_wp_list, front_wp_list
