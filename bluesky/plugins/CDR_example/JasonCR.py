@@ -27,14 +27,6 @@ def init_plugin():
 
 
 class JasonCR(ConflictResolution):
-    def __init__(self):
-        super().__init__()
-        self.apdict = dict()
-        
-    def reset(self):
-        super().reset()
-        self.apdict = dict()
-        
       # Some helper functions
     def norm_sq(self, x):
         return np.dot(x, x)
@@ -61,122 +53,36 @@ class JasonCR(ConflictResolution):
         newalt = np.copy(ownship.ap.alt)
         newtrack = np.copy(ownship.ap.trk)
         
-        intervention_list = []
-        bs.scr.echo(f"{intervention_list}")
+        # Get initial list of speeds
+        speed_to_set = [[x] for x in bs.traf.gs]
+        
+        # Get qdr
+        qdr, _ = bs.tools.geo.kwikqdrdist_matrix(
+            np.asmatrix(ownship.lat),
+            np.asmatrix(ownship.lon),
+            np.asmatrix(intruder.lat),
+            np.asmatrix(intruder.lon),
+        )
 
         for entry in confinfo:
-            self.apdict[entry[0][0]] = True
+            # Check if any of em deleted
+            #self.apdict[entry[0][0]] = True
             # Get the aircraft IDX
-            flag = False
-            coords_list = []
             ownship_idx = bs.traf.id2idx(entry[0][0])
             intruder_idx = bs.traf.id2idx(entry[0][1])
             
-            acrte1 = Route._routes.get(entry[0][0])
-            acrte2 = Route._routes.get(entry[0][1])
+            #acrte1 = Route._routes.get(entry[0][0])
+            #acrte2 = Route._routes.get(entry[0][1])
+            idx_pair = confpairs.index((entry[0][0], entry[0][1]))
+            qdr_pair = qdr[ownship_idx, intruder_idx]
+            qdr_intruder = ((qdr_pair - ownship.trk[ownship_idx]) + 180) % 360 - 180  
+            qdr_difference = ((qdr_pair - ownship.trk[intruder_idx]) + 180) % 360 - 180
+            intr_in_front = (-20 < qdr_intruder < 20)
+            intr_in_back = (qdr_intruder < -160 or 160 < qdr_intruder)
+            intr_front_aligned = intr_in_front and -20< qdr_difference < 20
             
-            if entry[0][0] in intervention_list or entry[0][1] in intervention_list:
-                continue
-            
-            #conf_dist = 0
-            #j = acrte1.iactwp
-            #currentwp = acrte1.wplat[j], acrte1.wplon[j]
-            #while conf_dist < 300:
-            #    if j == len(acrte1.wplat)-2:
-            #        coords_list.append((acrte1.wplat[j], acrte1.wplon[j]))
-            #        break
-            #    # Now, get next wp
-            #    try:
-            #        acrte1.wplat[j+1]
-            #    except: 
-            #        coords_list.append((acrte1.wplat[j], acrte1.wplon[j]))
-            #        break
-            #    nextwp = (acrte1.wplat[j+1], acrte1.wplon[j+1])
-            #    # Get the distance
-            #    conf_dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm
-            #    # Add wp
-            #    coords_list.append((nextwp[1], nextwp[0]))
-            #    # Set new wp
-            #    j += 1
-            #    currentwp = nextwp
-            #
-            #match = 0
-            #conf_dist = 0    
-            #j = acrte2.iactwp
-            #currentwp = acrte2.wplat[j], acrte2.wplon[j]
-            #while conf_dist < 300:
-            #    if j == len(acrte2.wplat)-2:
-            #        if (acrte2.wplat[j], acrte2.wplon[j]) in coords_list:
-            #            match +=1 
-            #            if match == 1:
-            #                dist2 = conf_dist
-            #                   
-            #                idx = coords_list.index((acrte2.wplat[j], acrte2.wplon[j]))
-            #                for k in range( acrte1.iactwp + idx +1 ):
-            #                    if k == 0:
-            #                        dist1 =  kwikdist(acrte1.wplat[acrte1.iactwp], acrte1.wplon[acrte1.iactwp], acrte1.wplat[acrte1.iactwp+1], acrte1.wplon[acrte1.iactwp+1])
-            #                    
-            #                    else:
-            #                        dist1 += kwikdist(acrte1.wplat[acrte1.iactwp +j], acrte1.wplon[acrte1.iactwp +j], acrte1.wplat[acrte1.iactwp +j+1], acrte1.wplon[acrte1.iactwp +j+1])
-            #                        
-            #                if dist1 > dist2:
-            #                    newgs[ownship_idx] = 0
-            #                    self.apdict[entry[0][0]] = False
-            #                    bs.scr.echo(f"It happened 1 for {entry[0][0]}")
-            #                    intervention_list.append(entry[0][0])
-            #                    #print(f"distance of {entry[0][0]} is {dist1} and distance of {entry[0][1]} is {dist2}")
-            #                    #print(f"Going to coordinate ")
-            #                flag = True
-            #                break
-            #        break
-            #    # Now, get next wp
-            #    try:
-            #        acrte2.wplat[j+1]
-            #    except: 
-            #        break
-            #    nextwp = (acrte2.wplat[j+1], acrte2.wplon[j+1])
-            #    # Get the distance
-            #    conf_dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm
-            #    # Add wp
-            #    if (acrte2.wplat[j], acrte2.wplon[j]) in coords_list:
-            #            match +=1 
-            #            if match == 1:
-            #                dist2 = conf_dist
-            #                   
-            #                idx = coords_list.index((acrte2.wplat[j], acrte2.wplon[j]))
-            #                for k in range( acrte1.iactwp + idx +1 ):
-            #                    if k == 0:
-            #                        dist1 =  kwikdist(acrte1.wplat[acrte1.iactwp], acrte1.wplon[acrte1.iactwp], acrte1.wplat[acrte1.iactwp+1], acrte1.wplon[acrte1.iactwp+1])
-            #                    
-            #                    else:
-            #                        dist1 += kwikdist(acrte1.wplat[acrte1.iactwp +j], acrte1.wplon[acrte1.iactwp +j], acrte1.wplat[acrte1.iactwp +j+1], acrte1.wplon[acrte1.iactwp +j+1])
-            #                        
-            #                if dist1 > dist2:
-            #                    newgs[ownship_idx] = 0
-            #                    self.apdict[entry[0][0]] = False
-            #                    bs.scr.echo(f"It happened 1 for {entry[0][0]}")
-            #                    intervention_list.append(entry[0][0])
-            #                    #print(f"distance of {entry[0][0]} is {dist1} and distance of {entry[0][1]} is {dist2}")
-            #                    #print(f"Going to coordinate ")
-            #                flag = True
-            #                break
-            #    # Set new wp
-            #    j += 1
-            #    currentwp = nextwp
-            #        
-#
-        #
-            #
-            #
-            #if flag:
-            #    continue
-            
-            back_list, front_list = clip_route(ownship_idx, 300, 300)
-            
-            #print(entry[0][0])
-            #print(back_list)
-            #print(front_list)
-            #print("-------------------------------------")
+            # Get the back and front routes of this ownship
+            back_list, front_list = self.clip_route(ownship_idx, 300, 300)
             
             if len(back_list) > 1:
                 back_string = sh.LineString(back_list)
@@ -194,53 +100,59 @@ class JasonCR(ConflictResolution):
             back_nearest = nearest_points(back_string, sh.Point(bs.traf.lat[intruder_idx], bs.traf.lon[intruder_idx]))[0]
             back_dist = kwikdist(back_nearest.x,back_nearest.y,bs.traf.lat[intruder_idx], bs.traf.lon[intruder_idx]) * nm
             
-            if entry[0][0] == "DR82":
-                print(back_dist)
-                print(front_dist)
-                
-            if front_dist < 1 and front_dist < back_dist:
-                newgs[ownship_idx] = 0
-                self.apdict[entry[0][0]] = False
-                intervention_list.append(entry[0][0])
-                flag = True
-                
-            elif back_dist < 1:
-                flag = True
+            # Check if loss of separation
+            #los = kwikdist(bs.traf.lat[ownship_idx], bs.traf.lon[ownship_idx], bs.traf.lat[intruder_idx], bs.traf.lon[intruder_idx]) * nm < bs.traf.cd.rpz_def
             
-            if flag:
+            if (front_dist < 1 and front_dist < back_dist) or intr_front_aligned:
+                speed_to_set[ownship_idx].append(bs.traf.gs[intruder_idx])
                 continue
-            #bs.scr.echo(f"{entry[0][0]} waypoint {entry[2]} | {entry[0][1]} waypoint {entry[3]}")
                 
-            #if confcounter[entry[0][0]] > 1 and confcounter[entry[0][0]] >= confcounter[entry[0][1]]:
-            #    newgs[ownship_idx] = 0
-            #    self.apdict[entry[0][0]] = False
-            #    bs.scr.echo("it happened 2")
-            #    if confcounter[entry[0][0]] >= confcounter[entry[0][1]]:
-            #        confcounter[entry[0][0]] += 1
-                
-            #elif confcounter[entry[0][1]] > 1 and confcounter[entry[0][0]] < confcounter[entry[0][1]]:
-            #    newgs[intruder_idx] = 0
-            #    bs.scr.echo("it happened 3")
-
+            elif back_dist < 1 or intr_in_back:
+                # We're in the front, continue
+                continue
             
+            # Get the problem waypoints
+            conf_wp_own_idx, conf_wp_intr_idx = entry[2], entry[3]
             
-            if ownship_idx > intruder_idx:
-                bs.scr.echo(f"It happened 4 for {entry[0][0]}")
-                intervention_list.append(entry[0][0])
-                newgs[ownship_idx] = 0
-                self.apdict[entry[0][0]] = False
-
-        bs.scr.echo("------------------------------------------------")
-
+            # Calculate the distance to the problem waypoints
+            dist_ownship = self.calc_dist_to_wp_idx(ownship_idx, conf_wp_own_idx)
+            dist_intruder = self.calc_dist_to_wp_idx(intruder_idx, conf_wp_intr_idx)
+            
+            if dist_ownship < dist_intruder:
+                # We have priority
+                continue
+            elif dist_ownship > dist_intruder:
+                # They have priority, stop, but only 60m from problem wp
+                speed_to_set[ownship_idx].append(0)
+            else:
+                # Perfectly equal distance, use ACID
+                if ownship_idx > intruder_idx:
+                    bs.scr.echo(f"It happened 4 for {entry[0][0]}")
+                    speed_to_set[ownship_idx].append(0)
+        
+        # Get the smallest commanded speed for each aircraft in conflict
+        newgs = np.array([min(x) for x in speed_to_set])
         return newtrack, newgs, newvs, newalt
     
-    
-
-    def JasonResolve(
-        self, conf, ownship_idx, intruder_idx, predicted_waypoints, qdr_mat, dist_mat
-    ):
-        # Just make it stop (horrible idea if left like this, all aircraft will stop
-        return 0
+    def calc_dist_to_wp_idx(self, acidx, wpidx):
+        # Calculates the distance from the current aircraft position to the specified wpidx in the future route.
+        # Get the route
+        acrte = bs.traf.ap.route[acidx]
+        iactwp = acrte.iactwp
+        # Sanity check
+        if iactwp > wpidx:
+            return 0
+        # First add the distance from current ac position to current wp
+        dist = kwikdist(bs.traf.lat[acidx], bs.traf.lon[acidx], acrte.wplat[iactwp], acrte.wplon[iactwp]) * nm
+        # Then, let's check the other waypoints
+        if iactwp == wpidx:
+            return dist
+        
+        i = iactwp
+        while i < wpidx:
+            dist += kwikdist(acrte.wplat[i], acrte.wplon[i], acrte.wplat[i+1], acrte.wplon[i+1]) * nm
+            i += 1
+        return dist
 
     # We want to override the HDGACTIVE flag for aircraft to always follow the heading from AP
     @property
@@ -288,6 +200,12 @@ class JasonCR(ConflictResolution):
                 return anglediff(a + 360, b)
             else:
                 return d    
+        qdr, _ = bs.tools.geo.kwikqdrdist_matrix(
+                    np.asmatrix(ownship.lat),
+                    np.asmatrix(ownship.lon),
+                    np.asmatrix(intruder.lat),
+                    np.asmatrix(intruder.lon),
+                )
         # Look at all conflicts, also the ones that are solved but CPA is yet to come
         for conflict in self.resopairs:
             idx1, idx2 = bs.traf.id2idx(conflict)
@@ -345,9 +263,17 @@ class JasonCR(ConflictResolution):
                 ##### ANDREI'S CHANGE -> also added the dist_ok here ----  ^
                 # Enable ASAS for this aircraft
                 changeactive[idx1] = True
-                # Ok but check if we can set AP speed for the ownship
-                #if conflict[0] in self.apdict and self.apdict[conflict[0]]:
-                #    bs.traf.cr.tas[idx1] = bs.traf.ap.tas[idx1]
+                # If AP speed is lower than the CR speed, update it, as we're probably turning.
+                if self.tas[idx1] > bs.traf.ap.tas[idx1]:
+                    self.tas[idx1] = bs.traf.ap.tas[idx1]
+                    
+                # However, if we have priority, we can resume normal operations
+                qdr_pair = qdr[idx1, idx2]
+                qdr_intruder = ((qdr_pair - ownship.trk[idx1]) + 180) % 360 - 180  
+                intr_in_back = (qdr_intruder < -160 or 160 < qdr_intruder)
+                if intr_in_back or (idx1 > idx2 and bs.traf.gs[idx1] < 1 and bs.traf.gs[idx2] < 1):
+                    # Set the speed to the autopilot one
+                    self.tas[idx1] = bs.traf.ap.tas[idx1]
                     
             else:
                 # Switch ASAS off for ownship if there are no other conflicts
@@ -357,6 +283,7 @@ class JasonCR(ConflictResolution):
                 delpairs.add(conflict)
                 # Remove this pair from the ap dict
                 #self.apdict.pop(conflict[0])
+                
         for idx, active in changeactive.items():
             # Loop a second time: this is to avoid that ASAS resolution is
             # turned off for an aircraft that is involved simultaneously in
@@ -374,7 +301,7 @@ class JasonCR(ConflictResolution):
         # Remove pairs from the list that are past CPA or have deleted aircraft
         self.resopairs -= delpairs      
         
-def clip_route(idx, dist_front, dist_back):
+    def clip_route(self, idx, dist_front, dist_back):
         route = bs.traf.ap.route[idx]
         i = route.iactwp
         currentwp = (bs.traf.lat[idx], bs.traf.lon[idx])

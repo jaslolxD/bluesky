@@ -1253,6 +1253,7 @@ class JasonCD(ConflictDetection):
                 )
                 I = np.eye(len(df[df["part"] == i]["acid"].unique()))
                 qdr = np.asarray(qdr)
+                qdr = qdr
                 dist = np.asarray(dist) * nm + 1e9 * I
                 conflicts = np.column_stack(np.where(dist < rpz))
                 for pair in conflicts:
