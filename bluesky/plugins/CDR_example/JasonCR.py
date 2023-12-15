@@ -74,8 +74,6 @@ class JasonCR(ConflictResolution):
             ownship_idx = bs.traf.id2idx(entry[0][0])
             intruder_idx = bs.traf.id2idx(entry[0][1])
             
-            #acrte1 = Route._routes.get(entry[0][0])
-            #acrte2 = Route._routes.get(entry[0][1])
             idx_pair = confpairs.index((entry[0][0], entry[0][1]))
             qdr_pair = qdr[ownship_idx, intruder_idx]
             qdr_intruder = ((qdr_pair - ownship.trk[ownship_idx]) + 180) % 360 - 180  
@@ -105,18 +103,13 @@ class JasonCR(ConflictResolution):
             
             # Check if loss of separation
             #los = kwikdist(bs.traf.lat[ownship_idx], bs.traf.lon[ownship_idx], bs.traf.lat[intruder_idx], bs.traf.lon[intruder_idx]) * nm < bs.traf.cd.rpz_def
-            #if ownship_idx in (bs.traf.id2idx("DR34") ,bs.traf.id2idx("DR53")): 
-            #    print(entry[0][0],f"Front dist {front_dist}")
-            #    print(entry[0][0],f"Back dist {back_dist}")
             
             
             if (front_dist < 1 and front_dist < back_dist) or intr_front_aligned:
-                if kwikdist(bs.traf.lat[ownship_idx],bs.traf.lon[ownship_idx], bs.traf.lat[intruder_idx], bs.traf.lon[intruder_idx]) > 2.5*bs.traf.cd.rpz_def:
+                if kwikdist(bs.traf.lat[ownship_idx],bs.traf.lon[ownship_idx], bs.traf.lat[intruder_idx], bs.traf.lon[intruder_idx]) *nm > 2.5*bs.traf.cd.rpz_def:
                     speed_to_set[ownship_idx].append(bs.traf.gs[intruder_idx])
                 else:
                     speed_to_set[ownship_idx].append(0)
-                if ownship_idx in (bs.traf.id2idx("DR65") ,bs.traf.id2idx("DR115")): 
-                    print(entry[0][0],"Executed Back traffic")
                 continue
                 
             elif back_dist < 1 or intr_in_back:
@@ -140,22 +133,14 @@ class JasonCR(ConflictResolution):
             elif dist_ownship > dist_intruder:
                 # They have priority, stop, but only 60m from problem wp
                 speed_to_set[ownship_idx].append(0)
-                if ownship_idx in (bs.traf.id2idx("DR65") ,bs.traf.id2idx("DR115")): 
-                    print(entry[0][0],"Executed 2")
+                
             else:
                 # Perfectly equal distance, use ACID
                 if ownship_idx > intruder_idx:
                     speed_to_set[ownship_idx].append(0)
-                    if ownship_idx in (bs.traf.id2idx("DR65") ,bs.traf.id2idx("DR115")): 
-                        print(entry[0][0],"Executed 3")
 
         # Get the smallest commanded speed for each aircraft in conflict
         newgs = np.array([min(x) for x in speed_to_set])
-        #self.newgs = newgs
-        #for idx in ("DR65", "DR115"):
-        ##    print(idx, newgs[bs.traf.id2idx(idx)])
-        #    print(idx, speed_to_set[bs.traf.id2idx(idx)])
-        #print("---------------------------------")
         return newtrack, newgs, newvs, newalt
     
     def calc_dist_to_wp_idx(self, ownship_idx, intruder_idx, wpidx_ownship, wpidx_intruder):
@@ -172,7 +157,7 @@ class JasonCR(ConflictResolution):
         conf_dist = 0
         currentwp = acrte1.wplat[j], acrte1.wplon[j]
         while conf_dist < 100:
-            if j == len(acrte1.wplat)-2:
+            if j >= len(acrte1.wplat)-2:
                 coords1.append((acrte1.wplon[j], acrte1.wplat[j]))
                 break
             # Now, get next wp
@@ -189,7 +174,7 @@ class JasonCR(ConflictResolution):
         j = iactwp2
         currentwp = acrte2.wplat[j], acrte2.wplon[j]
         while conf_dist < 100:
-            if j == len(acrte2.wplat)-2:
+            if j >= len(acrte2.wplat)-2:
                 coords2.append((acrte2.wplon[j], acrte2.wplat[j]))
                 break
             # Now, get next wp
@@ -438,6 +423,7 @@ class JasonCR(ConflictResolution):
         currentwp = (bs.traf.lat[idx], bs.traf.lon[idx])
         while dist < dist_front:
             if i >= len(route.wplat)-2:
+                front_wp_list.append((route.wplat[i], route.wplon[i]))
                 break
             # Now, get next wp
             nextwp = (route.wplat[i+1], route.wplon[i+1])

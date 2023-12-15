@@ -1416,7 +1416,7 @@ class JasonCD(ConflictDetection):
         lospairs = [(ownship.id[i], ownship.id[j]) for i, j in zip(*np.where(swlos))]
         # bs.scr.echo(f"{lospairs}")
         self.lospairs = lospairs
-        bs.scr.echo(f"{confpairs}")
+        #bs.scr.echo(f"{confpairs}")
 
         return confpairs, inconf, lospairs, df, confinfo
 
