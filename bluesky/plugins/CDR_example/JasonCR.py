@@ -54,10 +54,10 @@ class JasonCR(ConflictResolution):
         newtrack = np.copy(ownship.ap.trk)
         
         # Get initial list of speeds
-        #speed_to_set = [[x] for x in bs.traf.gs]
+        #self.speed_to_set = [[x] for x in bs.traf.gs]
         speed_to_set = [[x] for x in newgs]
-        random_idx = bs.traf.id2idx("DR53")
-        print(f"Initial speeds {speed_to_set[random_idx]}")
+        random_idx = bs.traf.id2idx("DR80")
+        #print(f"Initial speeds {speed_to_set[random_idx]}")
         
         # Get qdr
         qdr, _ = bs.tools.geo.kwikqdrdist_matrix(
@@ -111,9 +111,12 @@ class JasonCR(ConflictResolution):
             
             
             if (front_dist < 1 and front_dist < back_dist) or intr_front_aligned:
-                speed_to_set[ownship_idx].append(bs.traf.gs[intruder_idx])
-                #if ownship_idx in (bs.traf.id2idx("DR34") ,bs.traf.id2idx("DR53")): 
-                #    print(entry[0][0],"Executed Back traffic")
+                if kwikdist(bs.traf.lat[ownship_idx],bs.traf.lon[ownship_idx], bs.traf.lat[intruder_idx], bs.traf.lon[intruder_idx]) > 2.5*bs.traf.cd.rpz_def:
+                    speed_to_set[ownship_idx].append(bs.traf.gs[intruder_idx])
+                else:
+                    speed_to_set[ownship_idx].append(0)
+                if ownship_idx in (bs.traf.id2idx("DR65") ,bs.traf.id2idx("DR115")): 
+                    print(entry[0][0],"Executed Back traffic")
                 continue
                 
             elif back_dist < 1 or intr_in_back:
@@ -124,12 +127,11 @@ class JasonCR(ConflictResolution):
             conf_wp_own_idx, conf_wp_intr_idx = entry[2], entry[3]
             
             # Calculate the distance to the problem waypoints
-            dist_ownship = self.calc_dist_to_wp_idx(ownship_idx, conf_wp_own_idx)
-            dist_intruder = self.calc_dist_to_wp_idx(intruder_idx, conf_wp_intr_idx)
+            dist_ownship, dist_intruder = self.calc_dist_to_wp_idx(ownship_idx, intruder_idx, conf_wp_own_idx,conf_wp_intr_idx)
             
-            if ownship_idx in (bs.traf.id2idx("DR34") ,bs.traf.id2idx("DR53")): 
-                print(entry[0][0],f"Ownship dist {dist_ownship}")
-                print(entry[0][0],f"Intruder dist {dist_intruder}")
+            #if ownship_idx in (bs.traf.id2idx("DR34") ,bs.traf.id2idx("DR53")): 
+            #    print(entry[0][0],f"Ownship dist {dist_ownship}")
+            #    print(entry[0][0],f"Intruder dist {dist_intruder}")
 
             
             if dist_ownship < dist_intruder:
@@ -138,44 +140,118 @@ class JasonCR(ConflictResolution):
             elif dist_ownship > dist_intruder:
                 # They have priority, stop, but only 60m from problem wp
                 speed_to_set[ownship_idx].append(0)
-                if ownship_idx in (bs.traf.id2idx("DR34") ,bs.traf.id2idx("DR53")): 
+                if ownship_idx in (bs.traf.id2idx("DR65") ,bs.traf.id2idx("DR115")): 
                     print(entry[0][0],"Executed 2")
             else:
                 # Perfectly equal distance, use ACID
                 if ownship_idx > intruder_idx:
                     speed_to_set[ownship_idx].append(0)
-                    if ownship_idx in (bs.traf.id2idx("DR34") ,bs.traf.id2idx("DR53")): 
+                    if ownship_idx in (bs.traf.id2idx("DR65") ,bs.traf.id2idx("DR115")): 
                         print(entry[0][0],"Executed 3")
 
         # Get the smallest commanded speed for each aircraft in conflict
         newgs = np.array([min(x) for x in speed_to_set])
-        for idx in ("DR34", "DR53"):
-        #    print(idx, newgs[bs.traf.id2idx(idx)])
-            print(idx, speed_to_set[bs.traf.id2idx(idx)])
-        print("---------------------------------")
+        #self.newgs = newgs
+        #for idx in ("DR65", "DR115"):
+        ##    print(idx, newgs[bs.traf.id2idx(idx)])
+        #    print(idx, speed_to_set[bs.traf.id2idx(idx)])
+        #print("---------------------------------")
         return newtrack, newgs, newvs, newalt
     
-    def calc_dist_to_wp_idx(self, acidx, wpidx):
+    def calc_dist_to_wp_idx(self, ownship_idx, intruder_idx, wpidx_ownship, wpidx_intruder):
         # Calculates the distance from the current aircraft position to the specified wpidx in the future route.
-        # Get the route
-        if acidx in (bs.traf.id2idx("DR34") ,bs.traf.id2idx("DR53")): 
-            print(bs.traf.id[acidx], wpidx)
-        acrte = bs.traf.ap.route[acidx]
-        iactwp = acrte.iactwp
-        # Sanity check
-        if iactwp > wpidx:
-            return 0
-        # First add the distance from current ac position to current wp
-        dist = kwikdist(bs.traf.lat[acidx], bs.traf.lon[acidx], acrte.wplat[iactwp], acrte.wplon[iactwp]) * nm
-        # Then, let's check the other waypoints
-        if iactwp == wpidx:
-            return dist
+        # Get the route2
+        acrte1 = bs.traf.ap.route[ownship_idx]
+        acrte2 = bs.traf.ap.route[intruder_idx]
+        iactwp1 = wpidx_ownship #acrte1.iactwp
+        iactwp2 = wpidx_intruder #acrte2.iactwp
+        coords1 = [(acrte1.wplat[iactwp1], acrte1.wplon[iactwp1])]
+        coords2 = [(acrte2.wplat[iactwp2], acrte2.wplon[iactwp2])]
         
-        i = iactwp
-        while i < wpidx:
-            dist += kwikdist(acrte.wplat[i], acrte.wplon[i], acrte.wplat[i+1], acrte.wplon[i+1]) * nm
-            i += 1
-        return dist
+        j= iactwp1
+        conf_dist = 0
+        currentwp = acrte1.wplat[j], acrte1.wplon[j]
+        while conf_dist < 100:
+            if j == len(acrte1.wplat)-2:
+                coords1.append((acrte1.wplon[j], acrte1.wplat[j]))
+                break
+            # Now, get next wp
+            nextwp = (acrte1.wplat[j+1], acrte1.wplon[j+1])
+            # Get the distance
+            conf_dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm
+            # Add wp
+            coords1.append((nextwp[0], nextwp[1]))
+            # Set new wp
+            j += 1
+            currentwp = nextwp
+        
+        conf_dist = 0    
+        j = iactwp2
+        currentwp = acrte2.wplat[j], acrte2.wplon[j]
+        while conf_dist < 100:
+            if j == len(acrte2.wplat)-2:
+                coords2.append((acrte2.wplon[j], acrte2.wplat[j]))
+                break
+            # Now, get next wp
+            nextwp = (acrte2.wplat[j+1], acrte2.wplon[j+1])
+            # Get the distance
+            conf_dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm
+            # Add wp
+            coords2.append((nextwp[0], nextwp[1]))
+            # Set new wp
+            j += 1
+            currentwp = nextwp
+            
+        for i in range(len(coords1)):
+            if coords1[i] in coords2:
+                wpidx1 = iactwp1 + i 
+                wpidx2 = iactwp2 +coords2.index(coords1[i]) 
+                break
+            
+        try:
+            wpidx1
+            wpidx2
+        except:
+            wpidx1 = wpidx_ownship
+            wpidx2 = wpidx_intruder
+            
+            # First add the distance from current ac position to current wp for ownship
+            dist1 = kwikdist(bs.traf.lat[ownship_idx], bs.traf.lon[ownship_idx], acrte1.wplat[iactwp1], acrte1.wplon[iactwp1]) * nm
+            # Then, let's check the other waypoints
+
+            i = acrte1.iactwp
+            while i < wpidx1:
+                dist1 += kwikdist(acrte1.wplat[i], acrte1.wplon[i], acrte1.wplat[i+1], acrte1.wplon[i+1]) * nm
+                i += 1
+
+
+            dist2 = kwikdist(bs.traf.lat[intruder_idx], bs.traf.lon[intruder_idx], acrte2.wplat[iactwp2], acrte2.wplon[iactwp2]) * nm
+            # Then, let's check the other waypoints
+
+            i = acrte2.iactwp
+            while i < wpidx2:
+                dist2 += kwikdist(acrte2.wplat[i], acrte2.wplon[i], acrte2.wplat[i+1], acrte2.wplon[i+1]) * nm
+                i += 1  
+        
+        else:
+            # First add the distance from current ac position to current wp for ownship
+            dist1 = kwikdist(bs.traf.lat[ownship_idx], bs.traf.lon[ownship_idx], acrte1.wplat[iactwp1], acrte1.wplon[iactwp1]) * nm
+            # Then, let's check the other waypoints
+
+            i = iactwp1
+            while i < wpidx1:
+                dist1 += kwikdist(acrte1.wplat[i], acrte1.wplon[i], acrte1.wplat[i+1], acrte1.wplon[i+1]) * nm
+                i += 1
+
+
+            dist2 = kwikdist(bs.traf.lat[intruder_idx], bs.traf.lon[intruder_idx], acrte2.wplat[iactwp2], acrte2.wplon[iactwp2]) * nm
+            # Then, let's check the other waypoints
+
+            i = iactwp2
+            while i < wpidx2:
+                dist2 += kwikdist(acrte2.wplat[i], acrte2.wplon[i], acrte2.wplat[i+1], acrte2.wplon[i+1]) * nm
+                i += 1  
+        return dist1, dist2
 
     # We want to override the HDGACTIVE flag for aircraft to always follow the heading from AP
     @property
@@ -288,22 +364,31 @@ class JasonCR(ConflictResolution):
                 changeactive[idx1] = True
                 # If AP speed is lower than the CR speed, update it, as we're probably turning.
                 if self.tas[idx1] > bs.traf.ap.tas[idx1]:
+                    #if idx1 == bs.traf.id2idx("DR115"):
+                    #    print("Resumenav 1")
                     self.tas[idx1] = bs.traf.ap.tas[idx1]
                     
                 # However, if we have priority, we can resume normal operations
                 qdr_pair = qdr[idx1, idx2]
                 qdr_intruder = ((qdr_pair - ownship.trk[idx1]) + 180) % 360 - 180  
+                #qdr_intruder = qdr_pair
                 intr_in_back = (qdr_intruder < -160 or 160 < qdr_intruder)
                 if intr_in_back or (idx1 > idx2 and bs.traf.gs[idx1] < 1 and bs.traf.gs[idx2] < 1):
                     # Set the speed to the autopilot one
                     #if idx1 == bs.traf.id2idx("DR115"):
-                    #    print("executed")
+                        #print("Resumenav 2")
+                        #print(f"{bs.traf.id[idx1]} ,{bs.traf.id[idx2]}, {qdr_intruder}")
+                        #print(f"{bs.traf.id[idx1]} ,{bs.traf.id[idx2]}, {qdr_pair}")
+                        #print(bs.traf.id[idx1],bs.traf.id[idx2], kwikqdrdist(bs.traf.lat[idx1],bs.traf.lon[idx1],bs.traf.lat[idx2],bs.traf.lon[idx2]))
+                        #print(ownship.trk[idx1])
                     self.tas[idx1] = bs.traf.ap.tas[idx1]
                     
             else:
                 # Switch ASAS off for ownship if there are no other conflicts
                 # that this aircraft is involved in.
-                changeactive[idx1] = changeactive.get(idx1, False)
+                #changeactive[idx1] = changeactive.get(idx1, False)
+                #if idx1 == bs.traf.id2idx("DR115"):
+                    #print("Resumenav")
                 # If conflict is solved, remove it from the resopairs list
                 delpairs.add(conflict)
                 # Remove this pair from the ap dict
