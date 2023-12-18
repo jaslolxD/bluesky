@@ -23,9 +23,6 @@ def init_plugin():
     config = {"plugin_name": "TRAFFICSPAWNER", "plugin_type": "sim", "reset": reset}
     # Put TrafficSpawner in bs.traf
     bs.traf.TrafficSpawner = trafficSpawner()
-    bs.stack.stack(f"SCHEDULE 00:00:00 PAN 40.776676,-73.971321")
-    bs.stack.stack(f"SCHEDULE 00:00:00 ZOOM 5")
-    bs.stack.stack(f"SCHEDULE 00:00:00 HOLD")
     return config
 
 
