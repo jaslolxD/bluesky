@@ -1,5 +1,5 @@
 n_scenarios = 10
-traffic_densities = [40, 60, 80, 100, 120, 140]
+traffic_densities = [40] #, 60, 80, 100, 120, 140]
 lookahead_time = [30, 20, 10]
 fileheader_cdr_CDR = "CD_RESO_TRAJ_PRED"
 fileheader_cdr_CD = "CD_TRAJ_PRED"
@@ -52,7 +52,7 @@ for density in traffic_densities:
         #filelist.append(f"{fileheader_state_CDR}_{seed}_{density}_30")
         #filelist.append(f"{fileheader_state_CD}_{seed}_{density}_30")
         
-f_bat = open(rf"C:\Coding\bluesky_fork2\scenario\batch_TRAJ.scn","w")
+f_bat = open(rf"C:\Coding\bluesky_fork2\scenario\batch_TRAJ_40.scn","w")
 for file in filelist:
     f_bat.write(f"00:00:00.00>SCEN {file} \n")
     f_bat.write(f"00:00:00.00>PCALL batches/scenarios/{file}.scn \n")
