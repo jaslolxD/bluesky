@@ -306,7 +306,8 @@ class SBCD(ConflictDetection):
                 
                 self.uniqueconfloslog.log(
                 self.unique_conf_dict[dictkey][0],
-                str(self.unique_conf_dict[dictkey][1], 1)
+                str(self.unique_conf_dict[dictkey][1]),
+                str(1)
                 )
                 self.unique_conf_dict.pop(dictkey)
                 continue
