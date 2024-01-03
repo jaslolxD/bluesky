@@ -48,7 +48,8 @@ uniqueconflosheader = \
     '#######################################################\n\n' + \
     'Parameters [Units]:\n' + \
     'Unique CONF ID, ' + \
-    'Resulted in LOS\n'
+    'Resulted in LOS, ' +\
+    'INTERSECTS\n'
 
 
 class SBCD(ConflictDetection):
@@ -274,7 +275,7 @@ class SBCD(ConflictDetection):
                 continue
             
             done_pairs.append(dictkey)
-                
+            intersects = self.route_intersect(idx1, idx2)
             # Set the bool as true
             if dictkey in self.unique_conf_dict:
                 self.unique_conf_dict[dictkey][1] = True
@@ -305,7 +306,7 @@ class SBCD(ConflictDetection):
                 
                 self.uniqueconfloslog.log(
                 self.unique_conf_dict[dictkey][0],
-                str(self.unique_conf_dict[dictkey][1])
+                str(self.unique_conf_dict[dictkey][1], 1)
                 )
                 self.unique_conf_dict.pop(dictkey)
                 continue
@@ -324,12 +325,14 @@ class SBCD(ConflictDetection):
                 continue
             
             done_pairs.append(dictkey)
+            intersects = self.route_intersect(idx1, idx2)
             
             # We want to keep this entry for a few extra seconds and see what happens
             # Get the conflict info and log it, then delete the entry
             self.uniqueconfloslog.log(
                 self.unique_conf_dict[dictkey][0],
-                str(self.unique_conf_dict[dictkey][1])
+                str(self.unique_conf_dict[dictkey][1]),
+                intersects
             )
             self.unique_conf_dict.pop(dictkey)
         

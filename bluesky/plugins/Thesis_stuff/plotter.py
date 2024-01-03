@@ -332,11 +332,11 @@ def falsepositiverate(fp_files,fp_files_conflog):
             #print(len(data[data["loscheck"] == False]))
             if "STATE" in fp_files[i][j]:
                 if "_10_" in fp_files[i][j]:
-                    conf_number.append([(len(data[data["loscheck"] == False]) -1)/len(data), "State-based", density, 10])
+                    conf_number.append([(len(data[data["loscheck"] == False]) -1)/len(data), len(data), (len(data[data["loscheck"] == False]) -1), "State-based", density, 10])
                 elif "_20_" in fp_files[i][j]:
-                    conf_number.append([(len(data[data["loscheck"] == False]) -1)/len(data), "State-based", density, 20])
+                    conf_number.append([(len(data[data["loscheck"] == False]) -1)/len(data), len(data),(len(data[data["loscheck"] == False]) -1), "State-based", density, 20])
                 else:
-                    conf_number.append([(len(data[data["loscheck"] == False]) -1)/len(data), "State-based", density, 30])
+                    conf_number.append([(len(data[data["loscheck"] == False]) -1)/len(data), len(data), (len(data[data["loscheck"] == False]) -1), "State-based", density, 30])
             else:
                 data_conf = pd.read_csv(rf"bluesky\plugins\Thesis_stuff\output_all1\{fp_files_conflog[i][j]}", sep = ",", skiprows= 9,  header = None)
                 data_conf.columns = ["simt", "confid", "DR1", "DR2","1", "2", "3", "4", "5", "6"]
@@ -356,11 +356,11 @@ def falsepositiverate(fp_files,fp_files_conflog):
                 
                 
                 if "_10_" in fp_files[i][j]:
-                    conf_number.append([counter/(len(data)), "Trajectory-based", density, 10])
+                    conf_number.append([counter/(len(data)-counter_conf),(len(data)-counter_conf), counter, "Trajectory-based", density, 10])
                 elif "_20_" in fp_files[i][j]:
-                    conf_number.append([counter/(len(data)), "Trajectory-based", density, 20])
+                    conf_number.append([counter/(len(data)-counter_conf), (len(data)-counter_conf), counter, "Trajectory-based", density, 20])
                 else:
-                    conf_number.append([counter/(len(data)), "Trajectory-based", density, 30])              
+                    conf_number.append([counter/(len(data)-counter_conf), (len(data)-counter_conf), counter, "Trajectory-based", density, 30])              
         #conf_number.append(conf_number_sub)
     return conf_number
 
@@ -419,7 +419,7 @@ datastring = ["S40", "T40", "S60", "T60", "S80", "T80", "S100", "T100", "S120", 
 fp_files_cd = datagather(directory_all, ["CDR_WASLOSLOG_CD_STATE", "CDR_WASLOSLOG_CD_TRAJ_PRED"], [[25,28], [25,27], [29,32], [29,31]] )
 fp_files_conflog = datagather(directory_all,["blablabla", "CDR_CONFLICTLOG_CD_TRAJ_PRED"] ,[[0,0],[0,0],[31,34],[31,33]])
 data_fp_rate = falsepositiverate(fp_files_cd, fp_files_conflog)
-df_fp_rate = pd.DataFrame(data_fp_rate, columns=["value", "method","density", "lookahead"])
+df_fp_rate = pd.DataFrame(data_fp_rate, columns=["fprate", "conflicts", "method","density", "lookahead"])
 #df_fp_rate = pd.read_pickle(f"df_fp_rate.pkl")
 df_fpr_state = df_fp_rate[df_fp_rate["method"] == "State-based"]
 df_fpr_traj = df_fp_rate[df_fp_rate["method"] == "Trajectory-based"]
