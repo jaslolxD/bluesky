@@ -5,6 +5,8 @@ import bluesky as bs
 from bluesky.tools import geo, datalog
 from bluesky.tools.aero import nm
 from bluesky.traffic.asas import ConflictDetection
+from shapely.geometry import LineString
+from bluesky.tools.geo import kwikqdrdist, kwikpos, kwikdist, kwikdist_matrix
 
 def init_plugin():
 
@@ -36,7 +38,8 @@ confheader = \
     'ALT1 [ft],' + \
     'LAT2 [deg],' + \
     'LON2 [deg],' + \
-    'ALT2 [ft]\n'
+    'ALT2 [ft], ' + \
+    'INTERSECTS\n'
 
 uniqueconflosheader = \
     '#######################################################\n' + \
@@ -237,6 +240,7 @@ class SBCD(ConflictDetection):
                 # Pair already in there
                 continue
             else:
+                intersects = self.route_intersect(idx1, idx2)
                 self.unique_conf_dict[dictkey] = [self.unique_conf_id_counter, False]
                 self.counter2id[self.unique_conf_id_counter] = dictkey 
                 self.unique_conf_id_counter += 1
@@ -250,7 +254,8 @@ class SBCD(ConflictDetection):
                 bs.traf.alt[idx1],
                 bs.traf.lat[idx2],
                 bs.traf.lon[idx2],
-                bs.traf.alt[idx2]
+                bs.traf.alt[idx2],
+                intersects
             )
             
         # Now check the new LOS
@@ -330,3 +335,53 @@ class SBCD(ConflictDetection):
         
         self.prevconfpairs = set(self.confpairs)
         self.prevlospairs = set(self.lospairs)
+        
+    def route_intersect(self, idx1, idx2):
+        # Get the clipped routes
+        clip1 = self.clip_route(idx1, 100, 100)
+        clip2 = self.clip_route(idx2, 100, 100)
+        # Get shapely lines
+        line1 = LineString(clip1)
+        line2 = LineString(clip2)
+        return line1.intersects(line2)
+    
+    def clip_route(self, idx, dist_front, dist_back):
+        route = bs.traf.ap.route[idx]
+        i = route.iactwp
+        currentwp = (bs.traf.lat[idx], bs.traf.lon[idx])
+        front_wp_list = []
+        back_wp_list = []
+        dist = 0
+        while dist < dist_back:
+            if i == 0:
+                break
+            # Now, get previous wp
+            prevwp = (route.wplat[i-1], route.wplon[i-1])
+            # Get the distance
+            dist += kwikdist(currentwp[0], currentwp[1], prevwp[0], prevwp[1]) * nm
+            # Add wp
+            back_wp_list.append((prevwp[1], prevwp[0]))
+            # Set new wp
+            i -= 1
+            currentwp = prevwp
+        # Reverse
+        back_wp_list.reverse()
+        # front
+        i = route.iactwp
+        dist = 0
+        currentwp = (bs.traf.lat[idx], bs.traf.lon[idx])
+        while dist < dist_front:
+            if i >= len(route.wplat)-2:
+                break
+            # Now, get next wp
+            nextwp = (route.wplat[i+1], route.wplon[i+1])
+            # Get the distance
+            dist += kwikdist(currentwp[0], currentwp[1], nextwp[0], nextwp[1]) * nm
+            # Add wp
+            front_wp_list.append((nextwp[1], nextwp[0]))
+            # Set new wp
+            i += 1
+            currentwp = nextwp
+            
+        # Put the list together
+        return back_wp_list + [(bs.traf.lon[idx], bs.traf.lat[idx])] + front_wp_list

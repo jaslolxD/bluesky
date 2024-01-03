@@ -10,14 +10,9 @@ directory_all = os.listdir(r"bluesky\plugins\Thesis_stuff\output_all1")
 
 for file in directory_all:
     f= open(rf"bluesky\plugins\Thesis_stuff\output_all1\{file}")
-    x=0
-    for lines in f:
-        if x>10:
-            break
-        x+= 1
-        
-    f.close()
-    if x <= 9:
+    if "_40_" in file and not "STATE" in file:
+        f.close()
+        print(file)
         os.remove(rf"bluesky\plugins\Thesis_stuff\output_all1\{file}")
 
             
