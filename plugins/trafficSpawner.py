@@ -33,7 +33,7 @@ def reset():
 class trafficSpawner(Entity):
     def __init__(self):
         super().__init__()
-        self.target_ntraf = 50
+        self.target_ntraf = 1
         self.traf_id = 1
         self.traf_alt = 100 * ft
 

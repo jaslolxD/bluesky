@@ -1,6 +1,7 @@
 import osmnx as ox
 import pickle
 import numpy as np
+import pandas as pd
 import geopandas as gpd
 import networkx as nx
 from shapely.ops import linemerge
@@ -12,6 +13,7 @@ from os.path import exists
 import tqdm
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
+from shapely.geometry import Point
 
 nm  = 1852. 
 
@@ -140,14 +142,31 @@ def generate_route_pickle(input):
 
 def main():
     input_arr = []
+    #print(nodes)
     added_orig_nodes, added_dest_nodes = generate_nodes(G)
-    for origin in added_orig_nodes:
-        for destination in added_dest_nodes:
-            input_arr.append((origin, destination))
-            #generate_route_pickle(origin, destination)
-            
-    with Pool(4) as p:
-        _ = list(tqdm.tqdm(p.imap(generate_route_pickle, input_arr), total = len(input_arr)))
+    #print(added_orig_nodes)
+    #print(added_dest_nodes)
+    orig_nodes = []
+    dest_nodes = []
+    for i in range(len(added_orig_nodes)):
+        orig_nodes.append([added_orig_nodes[i], G.nodes[added_orig_nodes[i]]["x"], G.nodes[added_orig_nodes[i]]["y"], Point(G.nodes[added_orig_nodes[i]]["x"], G.nodes[added_orig_nodes[i]]["y"])])
+        dest_nodes.append([added_dest_nodes[i], G.nodes[added_dest_nodes[i]]["x"], G.nodes[added_dest_nodes[i]]["y"], Point(G.nodes[added_dest_nodes[i]]["x"], G.nodes[added_dest_nodes[i]]["y"])])
+    
+    org_df = pd.DataFrame(orig_nodes,columns = ["nodes", "x","y","geometry"])
+    org_gdf = gpd.GeoDataFrame(org_df,geometry = org_df["geometry"] )
+    dest_df = pd.DataFrame(dest_nodes,columns = ["nodes", "x","y","geometry"])
+    dest_gdf = gpd.GeoDataFrame(dest_df,geometry = dest_df["geometry"] )
+
+    org_gdf.to_file("originnodes.gpkg", driver="GPKG")
+    dest_gdf.to_file("destnodes.gpkg", driver="GPKG")
+
+    #for origin in added_orig_nodes:
+    #    for destination in added_dest_nodes:
+    #        input_arr.append((origin, destination))
+    #        #generate_route_pickle(origin, destination)
+    #        
+    #with Pool(4) as p:
+    #    _ = list(tqdm.tqdm(p.imap(generate_route_pickle, input_arr), total = len(input_arr)))
 
 
 if __name__ == "__main__":

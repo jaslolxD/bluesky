@@ -1225,16 +1225,16 @@ class JasonCD(ConflictDetection):
         confinfo = []
         df = pd.DataFrame(array_measurement, columns=["acid", "part", "lat", "lon", "waypoint"])
 
-        #if self.plot_toggle:
-        #    for i in range(len(df)):
-        #        plt.scatter(
-        #            df.iloc[i].lon,
-        #            df.iloc[i].lat,
-        #            color="blue",
-        #            label=f"{df.acid}",
-        #        )
-        #        plt.text(df.iloc[i].lon, df.iloc[i].lat, str(i))
-        #    plt.show()
+        if self.plot_toggle:
+            for i in range(len(df)):
+                plt.scatter(
+                    df.iloc[i].lon,
+                    df.iloc[i].lat,
+                    color="blue",
+                    label=f"{df.acid}",
+                )
+                plt.text(df.iloc[i].lon, df.iloc[i].lat, str(i))
+            plt.show()
 
         try:
             parts = max(df["part"])
@@ -1346,52 +1346,52 @@ class JasonCD(ConflictDetection):
         self.confpairs = confpairs
 
         # Conflict plot
-        if self.plot_toggle:
-            done_pairs = []
-            for entry in confpairs:
-                if entry[0] and entry[1] in done_pairs:
-                    continue
-                done_pairs.append(entry[0])
-                
-                done_pairs.append(entry[1])
-                timer = 0
-                fig = plt.figure()
-                ax = fig.add_subplot()
-                plt.scatter(
-                    df[df["acid"] == entry[0]].lon,
-                    df[df["acid"] == entry[0]].lat,
-                    color="blue",
-                    label=f"{entry[0]}",
-                )
-                plt.scatter(
-                    df[df["acid"] == entry[1]].lon,
-                    df[df["acid"] == entry[1]].lat,
-                    color="red",
-                    label=f"{entry[1]}",
-                )
-                for coords in zip(
-                    df[df["acid"] == entry[0]].lon,
-                    df[df["acid"] == entry[0]].lat,
-                    df[df["acid"] == entry[1]].lon,
-                    df[df["acid"] == entry[1]].lat
-                ):
-                    ax.add_patch(
-                        Circle(
-                            coords[:2], radius=0.0005, ec="blue", fc="none", alpha=0.6
-                        )
-                    )
-                    ax.add_patch(
-                        Circle(
-                            coords[2:4], radius=0.0005, ec="red", fc="none", alpha=0.6
-                        )
-                    )
-                    plt.text(coords[0], coords[1], str(timer))
-                    plt.text(coords[2], coords[3], str(timer))
-                    timer += 1
-
-                ax.set_aspect("equal", adjustable="box")
-                ax.legend()
-            plt.show()
+        #if self.plot_toggle:
+        #    done_pairs = []
+        #    for entry in confpairs:
+        #        if entry[0] and entry[1] in done_pairs:
+        #            continue
+        #        done_pairs.append(entry[0])
+        #        
+        #        done_pairs.append(entry[1])
+        #        timer = 0
+        #        fig = plt.figure()
+        #        ax = fig.add_subplot()
+        #        plt.scatter(
+        #            df[df["acid"] == entry[0]].lon,
+        #            df[df["acid"] == entry[0]].lat,
+        #            color="blue",
+        #            label=f"{entry[0]}",
+        #        )
+        #        plt.scatter(
+        #            df[df["acid"] == entry[1]].lon,
+        #            df[df["acid"] == entry[1]].lat,
+        #            color="red",
+        #            label=f"{entry[1]}",
+        #        )
+        #        for coords in zip(
+        #            df[df["acid"] == entry[0]].lon,
+        #            df[df["acid"] == entry[0]].lat,
+        #            df[df["acid"] == entry[1]].lon,
+        #            df[df["acid"] == entry[1]].lat
+        #        ):
+        #            ax.add_patch(
+        #                Circle(
+        #                    coords[:2], radius=0.0005, ec="blue", fc="none", alpha=0.6
+        #                )
+        #            )
+        #            ax.add_patch(
+        #                Circle(
+        #                    coords[2:4], radius=0.0005, ec="red", fc="none", alpha=0.6
+        #                )
+        #            )
+        #            plt.text(coords[0], coords[1], str(timer))
+        #            plt.text(coords[2], coords[3], str(timer))
+        #            timer += 1
+#
+        #        ax.set_aspect("equal", adjustable="box")
+        #        ax.legend()
+        #    plt.show()
 
         confpairs_idx = [
             (bs.traf.id2idx(acid1), bs.traf.id2idx(acid2)) for acid1, acid2 in confpairs

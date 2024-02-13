@@ -3,6 +3,8 @@ import os
 import pandas as pd
 from statistics import mean
 import seaborn as sns
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning) 
 
 directory_state = os.listdir(r"bluesky\plugins\Thesis_stuff\output_state")
 directory_traj = os.listdir(r"bluesky\plugins\Thesis_stuff\output_traj")
@@ -63,6 +65,62 @@ def datagather(directory, logtype, index_traf):
 
     return [conflog_40_state, conflog_40_traj, conflog_60_state, conflog_60_traj, conflog_80_state, conflog_80_traj,  conflog_100_state, conflog_100_traj, conflog_120_state, conflog_120_traj, conflog_140_state, conflog_140_traj]
 
+def datagatherlos(directory, logtype, index_traf):
+    conflog_40_state = []
+    conflog_60_state = []
+    conflog_80_state = []
+    conflog_100_state = []
+    conflog_120_state = []
+    conflog_140_state = []
+
+    conflog_40_traj = []
+    conflog_60_traj = []
+    conflog_80_traj = []
+    conflog_100_traj = []
+    conflog_120_traj = []
+    conflog_140_traj = []
+    index_traf_1 = index_traf[0]
+    index_traf_2 = index_traf[1]
+    index_traf_3 = index_traf[2]
+    index_traf_4 = index_traf[3]
+    for file in directory:
+        if logtype[0] in file and "WAS" not in file:
+            #conflog [28:31] and [28:30]
+            #loslog  [19:22] and [19:23]
+            #flstlog [20:23] and [20:22]
+            if file[index_traf_1[0]:index_traf_1[1]] == "100":
+                conflog_100_state.append(file)
+            elif file[index_traf_1[0]:index_traf_1[1]] == "120":
+                conflog_120_state.append(file)
+            elif file[index_traf_1[0]:index_traf_1[1]] == "140":
+                conflog_140_state.append(file)
+            elif file[index_traf_2[0]:index_traf_2[1]] == "80":
+                conflog_80_state.append(file)
+            elif file[index_traf_2[0]:index_traf_2[1]] == "60":
+                conflog_60_state.append(file)
+            else: 
+                conflog_40_state.append(file)
+
+        elif logtype[1] in file and "WAS" not in file:
+            #conflog [32:35] [32:34]
+            #loslog [23:26] [23:25]
+            #flst [24:27] [24:26]
+            if file[index_traf_3[0]:index_traf_3[1]] == "100":
+                conflog_100_traj.append(file)
+            elif file[index_traf_3[0]:index_traf_3[1]] == "120":
+                conflog_120_traj.append(file)
+            elif file[index_traf_3[0]:index_traf_3[1]] == "140":
+                conflog_140_traj.append(file)
+            elif file[index_traf_4[0]:index_traf_4[1]] == "80":
+                conflog_80_traj.append(file)
+            elif file[index_traf_4[0]:index_traf_4[1]] == "60":
+                conflog_60_traj.append(file)
+            else: 
+                conflog_40_traj.append(file)
+
+    return [conflog_40_state, conflog_40_traj, conflog_60_state, conflog_60_traj, conflog_80_state, conflog_80_traj,  conflog_100_state, conflog_100_traj, conflog_120_state, conflog_120_traj, conflog_140_state, conflog_140_traj]
+
+
 def datagatherlookahead(lookahead, directory, logtype, index_traf):
     conflog_40_state = []
     conflog_60_state = []
@@ -118,8 +176,8 @@ def datagatherlookahead(lookahead, directory, logtype, index_traf):
 
     return [conflog_40_state, conflog_40_traj, conflog_60_state, conflog_60_traj, conflog_80_state, conflog_80_traj,  conflog_100_state, conflog_100_traj, conflog_120_state, conflog_120_traj, conflog_140_state, conflog_140_traj]
 
-string = "CDR_CONFLICTLOG_CD_TRAJ_PRED_9_80_10_20231216_12-35-32.log"
-
+string = "CONFLOG_CD_STATE_5_140_20_20240104_09-56-26.log"
+#print(string[19:22])
 #print(string.find("80"))
 #print(string[31:34])
 
@@ -145,17 +203,17 @@ def conflictcounter(conflict_files):
     conf_number =[]
     for i in range(len(conflict_files)):
         if i == 0 or i ==1:
-            density = 40
+            density = "VL"
         elif i == 2 or i ==3:
-            density = 60
+            density = "L"
         elif i == 4 or i ==5:
-            density = 80
+            density = "ML"
         elif i == 6 or i ==7:
-            density = 100
+            density = "MH"
         elif i == 8 or i ==9:
-            density = 120
+            density = "H"
         else:
-            density = 140
+            density = "VH"
         conf_number_sub=[]
         for log in conflict_files[i]:
             f= open(rf"bluesky\plugins\Thesis_stuff\output_all1\{log}")
@@ -170,11 +228,11 @@ def conflictcounter(conflict_files):
                     conf_number.append([max(data["confid"])-1, "State-based", density, 30])
             else:
                 if "_10_" in log:
-                    conf_number.append([max(data["confid"])-1, "Trajectory-based", density, 10])
+                    conf_number.append([max(data["confid"])-1, "Intent-Based", density, 10])
                 elif "_20_" in log:
-                    conf_number.append([max(data["confid"])-1, "Trajectory-based", density, 20])
+                    conf_number.append([max(data["confid"])-1, "Intent-Based", density, 20])
                 else:
-                    conf_number.append([max(data["confid"])-1, "Trajectory-based", density, 30])              
+                    conf_number.append([max(data["confid"])-1, "Intent-Based", density, 30])              
         #conf_number.append(conf_number_sub)
     return conf_number
 
@@ -182,17 +240,17 @@ def loscounter(los_files):
     los_number =[]
     for i in range(len(los_files)):
         if i == 0 or i ==1:
-            density = 40
+            density = "VL"
         elif i == 2 or i ==3:
-            density = 60
+            density = "L"
         elif i == 4 or i ==5:
-            density = 80
+            density = "ML"
         elif i == 6 or i ==7:
-            density = 100
+            density = "MH"
         elif i == 8 or i ==9:
-            density = 120
+            density = "H"
         else:
-            density = 140
+            density = "VH"
         for log in los_files[i]:
             f= open(rf"bluesky\plugins\Thesis_stuff\output_all1\{log}")
             data = pd.read_csv(rf"bluesky\plugins\Thesis_stuff\output_all1\{log}", sep = ",", skiprows= 9,  header = None)
@@ -206,11 +264,11 @@ def loscounter(los_files):
                     los_number.append([len(data[data["intersect"] ==1]), "State-based", density, 30])
             else:
                 if "_10_" in log:
-                    los_number.append([len(data[data["intersect"] ==1]), "Trajectory-based", density, 10])
+                    los_number.append([len(data[data["intersect"] ==1]), "Intent-Based", density, 10])
                 elif "_20_" in log:
-                    los_number.append([len(data[data["intersect"] ==1]), "Trajectory-based", density, 20])
+                    los_number.append([len(data[data["intersect"] ==1]), "Intent-Based", density, 20])
                 else:
-                    los_number.append([len(data[data["intersect"] ==1]), "Trajectory-based", density, 30])
+                    los_number.append([len(data[data["intersect"] ==1]), "Intent-Based", density, 30])
             
     return los_number
 
@@ -255,56 +313,116 @@ def distanceflown(cdr_files):
         dist_number.append(dist_number_sub)
     return dist_number
 
-def falsepositivecounter(fp_files,fp_files_conflog):
+def timetodetectcounter(conf_files, was_files, los_files):
     conf_number =[]
-    for i in range(len(fp_files)):
+    for i in range(len(was_files)):
         if i == 0 or i ==1:
-            density = 40
+            density = "VL"
         elif i == 2 or i ==3:
-            density = 60
+            density = "L"
         elif i == 4 or i ==5:
-            density = 80
+            density = "ML"
         elif i == 6 or i ==7:
-            density = 100
+            density = "MH"
         elif i == 8 or i ==9:
-            density = 120
+            density = "H"
         else:
-            density = 140
+            density = "VH"
         conf_number_sub=[]
-        for j in range(len(fp_files[i])):
-            f= open(rf"bluesky\plugins\Thesis_stuff\output_all1\{fp_files[i][j]}")
-            data = pd.read_csv(rf"bluesky\plugins\Thesis_stuff\output_all1\{fp_files[i][j]}", sep = ",", skiprows= 9,  header = None)
-            data.columns = ["simt", "confid", "loscheck"]
+        for j in range(len(was_files[i])):
+            f= open(rf"bluesky\plugins\Thesis_stuff\output_all1\{was_files[i][j]}")
+            data_conf = pd.read_csv(rf"bluesky\plugins\Thesis_stuff\output_all1\{conf_files[i][j]}", sep = ",", skiprows= 9,  header = None)
+            data_was = pd.read_csv(rf"bluesky\plugins\Thesis_stuff\output_all1\{was_files[i][j]}", sep = ",", skiprows= 9,  header = None)
+            data_los = pd.read_csv(rf"bluesky\plugins\Thesis_stuff\output_all1\{los_files[i][j]}", sep = ",", skiprows= 9,  header = None)
+            data_los.columns = ["simt", "losstart", "0", "DR1", "DR2","1", "2", "3", "4", "5", "6","DIST","intersect"]
+            temp_list = []
+            
             #print(len(data[data["loscheck"] == False]))
-            if "STATE" in fp_files[i][j]:
-                if "_10_" in fp_files[i][j]:
-                    conf_number.append([(len(data[data["loscheck"] == False]) -1), "State-based", density, 10])
-                elif "_20_" in fp_files[i][j]:
-                    conf_number.append([(len(data[data["loscheck"] == False]) -1), "State-based", density, 20])
-                else:
-                    conf_number.append([(len(data[data["loscheck"] == False]) -1), "State-based", density, 30])
-            else:
-                data_conf = pd.read_csv(rf"bluesky\plugins\Thesis_stuff\output_all1\{fp_files_conflog[i][j]}", sep = ",", skiprows= 9,  header = None)
-                data_conf.columns = ["simt", "confid", "DR1", "DR2","1", "2", "3", "4", "5", "6"]
-                counter = 0 
-                for k in range((len(data[data["loscheck"] == False]))):
-                    conflictid = data[data["loscheck"] == False].iloc[k,1]
-                    dr1 = data_conf["DR1"][data_conf["confid"] == conflictid]
-                    dr2 = data_conf["DR2"][data_conf["confid"] == conflictid]
-                    sliced = data_conf.loc[(data_conf["confid"] < conflictid +6) & (data_conf["confid"]> conflictid)]
-                    for l in range(len(sliced)):
-                        if dr1.iloc[0] == sliced["DR1"].iloc[l] and dr2.iloc[0] == sliced["DR2"].iloc[l]:
-                            break
+            if "STATE" in was_files[i][j]:
+                data_was.columns = ["simt", "confid", "loscheck", "intersect"]
+                data_conf.columns = ["simt", "confid", "DR1", "DR2","1", "2", "3", "4", "5", "6", "intersect"]
+                losses = data_was.loc[(data_was["loscheck"]== True)]
+                for conflictid in losses["confid"]:
+                    entry= data_conf.loc[(data_conf["confid"]== conflictid)]
+                    los = data_los.loc[(data_los["DR1"] == entry["DR1"].iloc[0]) & (data_los["DR2"] == entry["DR2"].iloc[0])]
+                    try:
+                        ttd = float(los["losstart"].iloc[0]) - float(entry["simt"])
+                    except:
+                        los = data_los.loc[(data_los["DR1"] == entry["DR2"].iloc[0]) & (data_los["DR2"] == entry["DR1"].iloc[0])]
+                        try: 
+                            ttd = float(los["losstart"].iloc[0]) - float(entry["simt"])
+                        except:
+                            continue
+                        ttd = float(los["losstart"].iloc[0]) - float(entry["simt"])
+                        data_los.drop(data_los.index[(data_los["DR1"] == entry["DR2"].iloc[0]) & (data_los["DR2"] == entry["DR1"].iloc[0])][0])
                     else:
-                        counter +=1
+                        ttd = float(los["losstart"].iloc[0]) - float(entry["simt"])
+                        data_los.drop(data_los.index[(data_los["DR1"] == entry["DR1"].iloc[0]) & (data_los["DR2"] == entry["DR2"].iloc[0])][0])
+                        
+                    if "_10_" in was_files[i][j]:
+                        if ttd < 0 or ttd > 11:
+                            continue
+                        temp_list.append(ttd)
+                    
+                    elif "_20_" in was_files[i][j]:
+                        if ttd < 0 or ttd > 21:
+                            continue
+                        temp_list.append(ttd)
+                    else:
+                        if ttd < 0 or ttd > 31:
+                            continue
+                        temp_list.append(ttd)
                 
-                
-                if "_10_" in fp_files[i][j]:
-                    conf_number.append([counter, "Trajectory-based", density, 10])
-                elif "_20_" in fp_files[i][j]:
-                    conf_number.append([counter, "Trajectory-based", density, 20])
+                    
+                if "_10_" in was_files[i][j]:
+                    conf_number.append([mean(temp_list), len(temp_list), "State-based", density, 10])
+                elif "_20_" in was_files[i][j]:
+                    conf_number.append([mean(temp_list), len(temp_list),"State-based", density, 20])
                 else:
-                    conf_number.append([counter, "Trajectory-based", density, 30])              
+                    conf_number.append([mean(temp_list), len(temp_list),"State-based", density, 30])
+            else:
+                data_was.columns = ["simt", "confid", "loscheck"]
+                data_conf.columns = ["simt", "confid", "DR1", "DR2","1", "2", "3", "4", "5", "6"]
+                
+                losses = data_was.loc[(data_was["loscheck"]== True)]
+                for conflictid in losses["confid"]:
+                    entry= data_conf.loc[(data_conf["confid"]== conflictid)]
+                    los = data_los.loc[(data_los["DR1"] == entry["DR1"].iloc[0]) & (data_los["DR2"] == entry["DR2"].iloc[0])]
+                    try:
+                        ttd = float(los["losstart"].iloc[0]) - float(entry["simt"])
+                    except:
+                        los = data_los.loc[(data_los["DR1"] == entry["DR2"].iloc[0]) & (data_los["DR2"] == entry["DR1"].iloc[0])]
+                        try: 
+                            ttd = float(los["losstart"].iloc[0]) - float(entry["simt"])
+                        except:
+                            continue
+                        ttd = float(los["losstart"].iloc[0]) - float(entry["simt"])
+                        data_los.drop(data_los.index[(data_los["DR1"] == entry["DR2"].iloc[0]) & (data_los["DR2"] == entry["DR1"].iloc[0])][0])
+                    else:
+                        ttd = float(los["losstart"].iloc[0]) - float(entry["simt"])
+                        data_los.drop(data_los.index[(data_los["DR1"] == entry["DR1"].iloc[0]) & (data_los["DR2"] == entry["DR2"].iloc[0])][0])
+                    
+                    if "_10_" in was_files[i][j]:
+                        if ttd < 0 or ttd > 15:
+                            continue
+                        temp_list.append(ttd)
+                    
+                    elif "_20_" in was_files[i][j]:
+                        if ttd < 0 or ttd > 25:
+                            continue
+                        temp_list.append(ttd)
+                    else:
+                        if ttd < 0 or ttd > 35:
+                            continue
+                        temp_list.append(ttd)
+                    
+                    
+                if "_10_" in was_files[i][j]:
+                    conf_number.append([mean(temp_list), len(temp_list),"Intent-Based", density, 10])
+                elif "_20_" in was_files[i][j]:
+                    conf_number.append([mean(temp_list), len(temp_list),"Intent-Based", density, 20])
+                else:
+                    conf_number.append([mean(temp_list), len(temp_list),"Intent-Based", density, 30])              
         #conf_number.append(conf_number_sub)
     return conf_number
     
@@ -313,31 +431,33 @@ def falsepositiverate(fp_files,fp_files_conflog):
     conf_number =[]
     for i in range(len(fp_files)):
         if i == 0 or i ==1:
-            density = 40
+            density = "VL"
         elif i == 2 or i ==3:
-            density = 60
+            density = "L"
         elif i == 4 or i ==5:
-            density = 80
+            density = "ML"
         elif i == 6 or i ==7:
-            density = 100
+            density = "MH"
         elif i == 8 or i ==9:
-            density = 120
+            density = "H"
         else:
-            density = 140
+            density = "VH"
         conf_number_sub=[]
         for j in range(len(fp_files[i])):
             f= open(rf"bluesky\plugins\Thesis_stuff\output_all1\{fp_files[i][j]}")
-            data = pd.read_csv(rf"bluesky\plugins\Thesis_stuff\output_all1\{fp_files[i][j]}", sep = ",", skiprows= 9,  header = None)
-            data.columns = ["simt", "confid", "loscheck"]
+            data = pd.read_csv(rf"bluesky\plugins\Thesis_stuff\output_all1\{fp_files[i][j]}", sep = ",", skiprows= 9,  header = None).fillna(value = 1)
+            
             #print(len(data[data["loscheck"] == False]))
             if "STATE" in fp_files[i][j]:
+                data.columns = ["simt", "confid", "loscheck", "intersect"]
                 if "_10_" in fp_files[i][j]:
-                    conf_number.append([(len(data[data["loscheck"] == False]) -1)/len(data), len(data), (len(data[data["loscheck"] == False]) -1), "State-based", density, 10])
+                    conf_number.append([(len(data.loc[(data["loscheck"] == False) | (data["intersect"] == 0)]) -1)/len(data), len(data), len(data.loc[(data["loscheck"] == False) | (data["intersect"] == 0)]) -1, "State-based", density, 10])
                 elif "_20_" in fp_files[i][j]:
-                    conf_number.append([(len(data[data["loscheck"] == False]) -1)/len(data), len(data),(len(data[data["loscheck"] == False]) -1), "State-based", density, 20])
+                    conf_number.append([(len(data.loc[(data["loscheck"] == False) | (data["intersect"] == 0)]) -1)/len(data), len(data),len(data.loc[(data["loscheck"] == False) | (data["intersect"] == 0)]) -1, "State-based", density, 20])
                 else:
-                    conf_number.append([(len(data[data["loscheck"] == False]) -1)/len(data), len(data), (len(data[data["loscheck"] == False]) -1), "State-based", density, 30])
+                    conf_number.append([(len(data.loc[(data["loscheck"] == False) | (data["intersect"] == 0)]) -1)/len(data), len(data), len(data.loc[(data["loscheck"] == False) | (data["intersect"] == 0)]) -1, "State-based", density, 30])
             else:
+                data.columns = ["simt", "confid", "loscheck"]
                 data_conf = pd.read_csv(rf"bluesky\plugins\Thesis_stuff\output_all1\{fp_files_conflog[i][j]}", sep = ",", skiprows= 9,  header = None)
                 data_conf.columns = ["simt", "confid", "DR1", "DR2","1", "2", "3", "4", "5", "6"]
                 counter = 0 
@@ -356,11 +476,69 @@ def falsepositiverate(fp_files,fp_files_conflog):
                 
                 
                 if "_10_" in fp_files[i][j]:
-                    conf_number.append([counter/(len(data)-counter_conf),(len(data)-counter_conf), counter, "Trajectory-based", density, 10])
+                    conf_number.append([counter/(len(data)-counter_conf),len(data)-counter_conf, counter, "Intent-Based", density, 10])
                 elif "_20_" in fp_files[i][j]:
-                    conf_number.append([counter/(len(data)-counter_conf), (len(data)-counter_conf), counter, "Trajectory-based", density, 20])
+                    conf_number.append([counter/(len(data)-counter_conf), len(data)-counter_conf, counter, "Intent-Based", density, 20])
                 else:
-                    conf_number.append([counter/(len(data)-counter_conf), (len(data)-counter_conf), counter, "Trajectory-based", density, 30])              
+                    conf_number.append([counter/(len(data)-counter_conf), len(data)-counter_conf, counter, "Intent-Based", density, 30])              
+        #conf_number.append(conf_number_sub)
+    return conf_number
+
+def secondaryrate(fp_files,fp_files_conflog,conf):
+    conf_number =[]
+    for i in range(len(fp_files)):
+        if i == 0 or i ==1:
+            density = "VL"
+        elif i == 2 or i ==3:
+            density = "L"
+        elif i == 4 or i ==5:
+            density = "ML"
+        elif i == 6 or i ==7:
+            density = "MH"
+        elif i == 8 or i ==9:
+            density = "H"
+        else:
+            density = "VH"
+        conf_number_sub=[]
+        for j in range(len(fp_files[i])):
+            f= open(rf"bluesky\plugins\Thesis_stuff\output_all1\{fp_files[i][j]}")
+            data = pd.read_csv(rf"bluesky\plugins\Thesis_stuff\output_all1\{fp_files[i][j]}", sep = ",", skiprows= 9,  header = None).fillna(value = 1)
+            data_conflicts = pd.read_csv(rf"bluesky\plugins\Thesis_stuff\output_all1\{conf[i][j]}", sep = ",", skiprows= 9,  header = None)
+            data_conflicts.columns = ["simt", "confid", "DR1", "DR2", "latDR1", "lonDR1", "alt1", "latDR2", "lonDR2", "alt2"]
+            #print(len(data[data["loscheck"] == False]))
+            if "STATE" in fp_files[i][j]:
+                data.columns = ["simt", "confid", "loscheck", "intersect"]
+                if "_10_" in fp_files[i][j]:
+                    conf_number.append([(max(data_conflicts["confid"])-1)/len(data), "State-based", density, 10])
+                elif "_20_" in fp_files[i][j]:
+                    conf_number.append([(max(data_conflicts["confid"])-1)/len(data), "State-based", density, 20])
+                else:
+                    conf_number.append([(max(data_conflicts["confid"])-1)/len(data), "State-based", density, 30])
+            else:
+                data.columns = ["simt", "confid", "loscheck"]
+                data_conf = pd.read_csv(rf"bluesky\plugins\Thesis_stuff\output_all1\{fp_files_conflog[i][j]}", sep = ",", skiprows= 9,  header = None)
+                data_conf.columns = ["simt", "confid", "DR1", "DR2","1", "2", "3", "4", "5", "6"]
+                counter = 0 
+                counter_conf=0
+                for k in range((len(data[data["loscheck"] == False]))):
+                    conflictid = data[data["loscheck"] == False].iloc[k,1]
+                    dr1 = data_conf["DR1"][data_conf["confid"] == conflictid]
+                    dr2 = data_conf["DR2"][data_conf["confid"] == conflictid]
+                    sliced = data_conf.loc[(data_conf["confid"] < conflictid +6) & (data_conf["confid"]> conflictid)]
+                    for l in range(len(sliced)):
+                        if dr1.iloc[0] == sliced["DR1"].iloc[l] and dr2.iloc[0] == sliced["DR2"].iloc[l]:
+                            counter_conf +=1
+                            break
+                    else:
+                        counter +=1
+                
+                
+                if "_10_" in fp_files[i][j]:
+                    conf_number.append([(max(data_conflicts["confid"])-1)/(len(data)-counter_conf), "Intent-Based", density, 10])
+                elif "_20_" in fp_files[i][j]:
+                    conf_number.append([(max(data_conflicts["confid"])-1)/(len(data)-counter_conf), "Intent-Based", density, 20])
+                else:
+                    conf_number.append([(max(data_conflicts["confid"])-1)/(len(data)-counter_conf), "Intent-Based", density, 30])              
         #conf_number.append(conf_number_sub)
     return conf_number
 
@@ -369,25 +547,25 @@ datastring = ["S40", "T40", "S60", "T60", "S80", "T80", "S100", "T100", "S120", 
 
 ##Conflict stuff ------------------------------------------------------------------------------------------------------
 #conflict_files = datagather(directory_all, ["CDR_CONFLICTLOG_CD_RESO_STATE", "CDR_CONFLICTLOG_CD_RESO_TRAJ_PRED"], [[32,35], [32,34], [36,39], [36,38]])
-
 #data_conflicts = conflictcounter(conflict_files)
-#df_conflicts = pd.DataFrame(data_conflicts, columns=["value", "method","density", "lookahead"])
-#df_conflicts_state = df_conflicts[df_conflicts["method"] == "State-based"]
-#df_conflicts_traj = df_conflicts[df_conflicts["method"] == "Trajectory-based"]
-#df_conflicts_10 = df_conflicts[df_conflicts["lookahead"] == 10]
-#df_conflicts_20 = df_conflicts[df_conflicts["lookahead"] == 20]
-#df_conflicts_30 = df_conflicts[df_conflicts["lookahead"] == 30]
+#df_conflicts = pd.DataFrame(data_conflicts, columns=["value", "Detection method","Traffic density", "lookahead time"])
+df_conflicts= pd.read_pickle(f"df_conf.pkl")
+df_conflicts_state = df_conflicts[df_conflicts["Detection method"] == "State-based"]
+df_conflicts_traj = df_conflicts[df_conflicts["Detection method"] == "Intent-Based"]
+df_conflicts_10 = df_conflicts[df_conflicts["lookahead time"] == 10]
+df_conflicts_20 = df_conflicts[df_conflicts["lookahead time"] == 20]
+df_conflicts_30 = df_conflicts[df_conflicts["lookahead time"] == 30]
 
 #Los stuff--------------------------------------------------------------------------------------------------------------
-#los_files = datagather(directory_all, ["LOSLOG_CD_RESO_STATE", "LOSLOG_CD_RESO_TRAJ_PRED"], [[23,26], [23,25], [27,30], [27,29]])
-#
-#data_los = loscounter(los_files)
-#df_los = pd.DataFrame(data_los, columns=["value", "method","density", "lookahead"])
-#df_los_state = df_los[df_los["method"] == "State-based"]
-#df_los_traj = df_los[df_los["method"] == "Trajectory-based"]
-#df_los_10 = df_los[df_los["lookahead"] == 10]
-#df_los_20 = df_los[df_los["lookahead"] == 20]
-#df_los_30 = df_los[df_los["lookahead"] == 30]
+los_files = datagatherlos(directory_all, ["LOSLOG_CD_RESO_STATE", "LOSLOG_CD_RESO_TRAJ_PRED"], [[23,26], [23,25], [27,30], [27,29]])
+data_los = loscounter(los_files)
+df_los = pd.DataFrame(data_los, columns=["value", "Detection method","Traffic density", "lookahead time"])
+df_los.to_pickle("df_los.pkl")
+df_los_state = df_los[df_los["Detection method"] == "State-based"]
+df_los_traj = df_los[df_los["Detection method"] == "Intent-Based"]
+df_los_10 = df_los[df_los["lookahead time"] == 10]
+df_los_20 = df_los[df_los["lookahead time"] == 20]
+df_los_30 = df_los[df_los["lookahead time"] == 30]
 
 
 #Flight delay -----------------------------------------------------------------------------------
@@ -410,29 +588,81 @@ datastring = ["S40", "T40", "S60", "T60", "S80", "T80", "S100", "T100", "S120", 
 #df_fp = pd.DataFrame(data_fp, columns=["value", "method","density", "lookahead"])
 #df_fp= pd.read_pickle(f"df_fp.pkl")
 #df_fp_state = df_fp[df_fp["method"] == "State-based"]
-#df_fp_traj = df_fp[df_fp["method"] == "Trajectory-based"]
+#df_fp_traj = df_fp[df_fp["method"] == "Intent-Based"]
 #df_fp_10 = df_fp[df_fp["lookahead"] == 10]
 #df_fp_20 = df_fp[df_fp["lookahead"] == 20]
 #df_fp_30 = df_fp[df_fp["lookahead"] == 30]
 
 #False positive rate -------------------------------------------------------------------------------
-fp_files_cd = datagather(directory_all, ["CDR_WASLOSLOG_CD_STATE", "CDR_WASLOSLOG_CD_TRAJ_PRED"], [[25,28], [25,27], [29,32], [29,31]] )
-fp_files_conflog = datagather(directory_all,["blablabla", "CDR_CONFLICTLOG_CD_TRAJ_PRED"] ,[[0,0],[0,0],[31,34],[31,33]])
-data_fp_rate = falsepositiverate(fp_files_cd, fp_files_conflog)
-df_fp_rate = pd.DataFrame(data_fp_rate, columns=["fprate", "conflicts", "method","density", "lookahead"])
-#df_fp_rate = pd.read_pickle(f"df_fp_rate.pkl")
-df_fpr_state = df_fp_rate[df_fp_rate["method"] == "State-based"]
-df_fpr_traj = df_fp_rate[df_fp_rate["method"] == "Trajectory-based"]
-df_fpr_10 = df_fp_rate[df_fp_rate["lookahead"] == 10]
-df_fpr_20 = df_fp_rate[df_fp_rate["lookahead"] == 20]
-df_fpr_30 = df_fp_rate[df_fp_rate["lookahead"] == 30]
+#fp_files_cd = datagather(directory_all, ["CDR_WASLOSLOG_CD_STATE", "CDR_WASLOSLOG_CD_TRAJ_PRED"], [[25,28], [25,27], [29,32], [29,31]] )
+#fp_files_conflog = datagather(directory_all,["blablabla", "CDR_CONFLICTLOG_CD_TRAJ_PRED"] ,[[0,0],[0,0],[31,34],[31,33]])
+#data_fp_rate = falsepositiverate(fp_files_cd, fp_files_conflog)
+#df_fpr = pd.DataFrame(data_fp_rate, columns=["fprate", "conflicts","fp", "method","density", "lookahead"])
 
+df_fpr= pd.read_pickle(f"df_fp_rate.pkl")
+df_fpr.columns= ["fprate", "conflicts","fp","Detection method","Traffic density", "lookahead time"]
+df_fpr_state = df_fpr[df_fpr["Detection method"] == "State-based"]
+df_fpr_traj = df_fpr[df_fpr["Detection method"] == "Intent-Based"]
+df_fpr_10 = df_fpr[df_fpr["lookahead time"] == 10]
+df_fpr_20 = df_fpr[df_fpr["lookahead time"] == 20]
+df_fpr_30 = df_fpr[df_fpr["lookahead time"] == 30]
 
+td_was_files = datagather(directory_all, ["CDR_WASLOSLOG_CD_STATE", "CDR_WASLOSLOG_CD_TRAJ_PRED"], [[25,28], [25,27], [29,32], [29,31]] )
+td_conf_files = datagather(directory_all,["CDR_CONFLICTLOG_CD_STATE", "CDR_CONFLICTLOG_CD_TRAJ_PRED"] ,[[27,30],[27,29],[31,34],[31,33]])
+td_los_files = datagatherlos(directory_all, ["LOSLOG_CD_STATE", "LOSLOG_CD_TRAJ_PRED"], [[18,21], [18,20], [22,25], [22,24]])
+data_ttd = timetodetectcounter(td_conf_files, td_was_files,td_los_files)
+df_ttd = pd.DataFrame(data_ttd, columns=["value", "datapoints","Detection method","Traffic density", "lookahead time"])
+df_ttd.to_pickle("df_ttd_2.pkl")
+#df_ttd = pd.read_pickle("df_ttd.pkl")
+df_ttd_10 = df_ttd[df_ttd["lookahead time"] == 10]
+df_ttd_20 = df_ttd[df_ttd["lookahead time"] == 20]
+df_ttd_30 = df_ttd[df_ttd["lookahead time"] == 30]
 
-fig = plt.figure(figsize =(10, 7))
+#conflict_files = datagather(directory_all, ["CDR_CONFLICTLOG_CD_RESO_STATE", "CDR_CONFLICTLOG_CD_RESO_TRAJ_PRED"], [[32,35], [32,34], [36,39], [36,38]])
+#fp_files_cd = datagather(directory_all, ["CDR_WASLOSLOG_CD_STATE", "CDR_WASLOSLOG_CD_TRAJ_PRED"], [[25,28], [25,27], [29,32], [29,31]] )
+#fp_files_conflog = datagather(directory_all,["blablabla", "CDR_CONFLICTLOG_CD_TRAJ_PRED"] ,[[0,0],[0,0],[31,34],[31,33]])
+#data_secondary = secondaryrate(fp_files_cd, fp_files_conflog, conflict_files)
+#df_secondary = pd.DataFrame(data_secondary, columns=["Ratio","Detection method","Traffic density", "lookahead time"])
+#print(df_secondary)
+#df_secondary.to_pickle("df_secondary.pkl")
+df_secondary = pd.read_pickle("df_secondary.pkl")
+df_secondary_10 = df_secondary[df_secondary["lookahead time"] == 10]
+df_secondary_20 = df_secondary[df_secondary["lookahead time"] == 20]
+df_secondary_30 = df_secondary[df_secondary["lookahead time"] == 30]
+df_secondary_state = df_secondary[df_secondary["Detection method"] == "State-based"]
+df_secondary_traj = df_secondary[df_secondary["Detection method"] == "Intent-Based"]
+
+fig = plt.figure(figsize =(8, 5))
 #sns.color_palette(["red","blue","green"])
-sns.boxplot(x='density', y='value', hue= 'method', data= df_fpr_10, palette="tab10").set(title= "Amount of false conflicts/ total conflicts")
-plt.xlabel("Traffic Density [No. aircraft]") 
-plt.ylabel("No. false conflicts/ total conflicts") 
-plt.show()
+sns.boxplot(x='Traffic density', y='value', hue= 'Detection method', data= df_ttd_10, palette="tab10").set(title= "Average detection time before conflict, t_lookahead = 10")
+plt.xlabel("Traffic Density") 
+plt.ylabel("Detectin time in seconds") 
+#plt.savefig(rf"C:\Coding\bluesky_fork2\bluesky\plugins\Thesis_stuff\appendix\ttd_30.png")
 
+#fig,axes = plt.subplots(1, 2, sharey=True, figsize=(8,5))
+#sns.set_style("whitegrid")
+#fig1=sns.boxplot(ax= axes[0], x='Traffic density', y='fprate', hue= 'lookahead time', data= df_fpr_traj, palette="tab10").set(title= "Number of conflicts detected intent-based")
+#axes[0].set_title("Intent-based")
+#axes[0].set(xlabel= None)
+#axes[0].set(ylabel= None)
+#plt.ylabel("No. False Positive Conflicts") 
+#
+#fig2=sns.boxplot(ax= axes[1], x='Traffic density', y='fprate', hue= 'lookahead time', data= df_fpr_state, palette="tab10").set(title= "Number of conflicts detected state-based")
+#axes[1].set_title("State-based")
+#axes[1].set(xlabel= None)
+#axes[1].set(ylabel= None)
+
+#fig3=sns.boxplot(ax= axes[2], x='Traffic density', y='value', hue= 'Detection method', data= df_ttd_30, palette="tab10").set(title= "Amount of Losses of Separation")
+#axes[2].set_title("t_lookahead = 30")
+#axes[2].set(xlabel= None)
+#axes[2].set(ylabel= None)
+#
+##axes[0].legend(fontsize = 8)
+##axes[1].legend(fontsize = 8)
+##axes[2].legend(fontsize = 8)
+#
+#plt.yscale('log')
+#plt.suptitle("False Positive Rate")
+#fig.text(0.5, 0.04, 'Traffic Density ', ha='center')
+#fig.text(0.04, 0.5, "False positive conflicts / total conflicts", va='center', rotation='vertical')
+plt.show()

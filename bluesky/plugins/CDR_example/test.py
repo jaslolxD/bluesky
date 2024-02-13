@@ -5,12 +5,13 @@ import plotly.express as px
 import osmnx as ox
 from collections import Counter
 import os
+import geopandas as gpd
 
 directory_all = os.listdir(r"bluesky\plugins\Thesis_stuff\output_all1")
 
 for file in directory_all:
     f= open(rf"bluesky\plugins\Thesis_stuff\output_all1\{file}")
-    if "_40_" in file and not "STATE" in file:
+    if "_CD_STATE_" in file:
         f.close()
         print(file)
         os.remove(rf"bluesky\plugins\Thesis_stuff\output_all1\{file}")
